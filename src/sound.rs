@@ -19,12 +19,16 @@
 //! ```
 
 use crate::{pd_func_caller, pd_func_caller_log};
-use crankstart_sys::ctypes;
+use crankstart_sys::{ctypes, SoundFormat};
 
 use anyhow::{anyhow, ensure, Error, Result};
-use core::ptr;
+use core::{mem::MaybeUninit, ptr};
 use cstr_core::CString;
 
+pub mod samplebuffer;
+pub use samplebuffer::{
+    Frame16BitMono, Frame16BitStereo, Frame8BitMono, Frame8BitStereo, SampleBuffer,
+};
 pub mod sampleplayer;
 pub use sampleplayer::{AudioSample, SamplePlayer};
 pub mod fileplayer;
@@ -104,6 +108,41 @@ impl Sound {
             "Null returned from sampleplayer.newPlayer"
         );
         SamplePlayer::new(self.raw_sample_player, raw_player)
+    }
+
+    /// Allocates a buffer for dynamically constructing an `AudioSample`, converted with
+    /// `SampleBuffer.as_audio_sample`.
+    pub fn new_sample_buffer(
+        &self,
+        format: SoundFormat,
+        frame_count: usize,
+        sample_rate: u32,
+    ) -> Result<SampleBuffer> {
+        ensure!(
+            SampleBuffer::is_format_supported(format),
+            "Unsupported format {format:?} given to Sound::new_sample_buffer"
+        );
+        let byte_count: usize = frame_count * SampleBuffer::frame_size(format);
+        let raw_sample: *mut crankstart_sys::AudioSample = pd_func_caller!(
+            (*self.raw_sample).newSampleBuffer,
+            byte_count as ctypes::c_int
+        )?;
+        ensure!(
+            !raw_sample.is_null(),
+            "Null returned from sample.newSampleBuffer"
+        );
+        {
+            // SAFETY: A `MaybeUninit` doesn't need to be initialized, raw_sample is non-null, and
+            // byte_count is the size of the allocation.
+            let maybe_uninit_bytes: &mut [MaybeUninit<u8>] = unsafe {
+                core::slice::from_raw_parts_mut(raw_sample as *mut MaybeUninit<u8>, byte_count)
+            };
+
+            for maybe_uninit_byte in maybe_uninit_bytes {
+                maybe_uninit_byte.write(0_u8);
+            }
+        }
+        SampleBuffer::new(self.raw_sample, raw_sample, byte_count, sample_rate, format)
     }
 
     /// Loads an `AudioSample` sound effect.  Assign it to a `SamplePlayer` with

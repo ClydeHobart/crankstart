@@ -1,8 +1,10 @@
+use super::{SampleBuffer, Sound};
 use crate::{log_to_console, pd_func_caller, pd_func_caller_log};
-use crankstart_sys::ctypes;
+use crankstart_sys::{ctypes, SoundFormat};
 
 use alloc::rc::Rc;
 use anyhow::{anyhow, ensure, Error, Result};
+use core::{mem::size_of, ptr, slice};
 
 /// Note: Make sure you hold on to a SamplePlayer until the sample has played as much as you want,
 /// because dropping it will stop playback.
@@ -216,5 +218,42 @@ impl AudioSample {
             (*self.inner.raw_subsystem).getLength,
             self.inner.raw_audio_sample
         )
+    }
+
+    /// Allocates a `SampleBuffer` with the contents of `self` copied into it.
+    pub fn as_sample_buffer(&self) -> Result<SampleBuffer> {
+        let mut data: *mut u8 = ptr::null_mut();
+        let mut format: SoundFormat = SoundFormat::kSound8bitMono;
+        let mut sample_rate: u32 = 0_u32;
+        let mut byte_length: u32 = 0_u32;
+        pd_func_caller!(
+            (*self.inner.raw_subsystem).getData,
+            self.inner.raw_audio_sample,
+            &mut data as *mut *mut u8,
+            &mut format as *mut SoundFormat,
+            &mut sample_rate as *mut u32,
+            &mut byte_length as *mut u32
+        )?;
+        ensure!(
+            !data.is_null(),
+            "Null pointer retrieved from AudioSample::as_sample_buffer"
+        );
+        ensure!(
+            SampleBuffer::is_format_supported(format),
+            "Unsupported format {format:?} retrieved from AudioSample::as_sample_buffer"
+        );
+        let byte_count: usize = byte_length as usize;
+        let frame_size: usize = SampleBuffer::frame_size(format);
+        ensure!(
+            byte_count % frame_size == 0_usize,
+            "Byte count {byte_count} isn't divisible by frame size {frame_size} for format \
+                {format:?} retrieved from AudioSample::as_sample_buffer"
+        );
+        let mut sample_buffer: SampleBuffer =
+            Sound::get().new_sample_buffer(format, byte_count / frame_size, sample_rate)?;
+        sample_buffer.copy_from_data(unsafe {
+            slice::from_raw_parts(data, byte_length as usize / size_of::<u8>())
+        })?;
+        Ok(sample_buffer)
     }
 }
