@@ -1,9 +1,17 @@
-#![no_std]
+#![cfg_attr(not(any(test, doctest)), no_std)]
+#![cfg_attr(not(any(test, doctest)), feature(alloc_error_handler, core_intrinsics))]
 #![allow(internal_features)]
-#![feature(lang_items, alloc_error_handler, core_intrinsics)]
 #![allow(unused_variables, dead_code, unused_imports)]
 
-extern crate alloc;
+#[cfg(not(any(test, doctest)))]
+pub extern crate alloc;
+
+#[cfg(any(test, doctest))]
+pub use std as alloc;
+
+// #![cfg_attr(not(any(test, doctest)), no_std)]
+
+// #[cfg(not(any(test, doctest)))]
 
 pub mod display;
 pub mod file;
@@ -63,14 +71,14 @@ impl Playdate {
 
 #[macro_export]
 macro_rules! log_to_console {
-    ($($arg:tt)*) => ($crate::system::System::log_to_console(&alloc::format!($($arg)*)));
+    ($($arg:tt)*) => ($crate::system::System::log_to_console(&$crate::alloc::format!($($arg)*)));
 }
 
 #[macro_export]
 macro_rules! pd_func_caller {
     ($raw_fn_opt:expr, $($arg:tt)*) => {
         unsafe {
-            use alloc::format;
+            use $crate::alloc::format;
             let raw_fn = $raw_fn_opt
                 .ok_or_else(|| anyhow::anyhow!("{} did not contain a function pointer", stringify!($raw_fn_opt)))?;
             Ok::<_, Error>(raw_fn($($arg)*))
@@ -78,7 +86,7 @@ macro_rules! pd_func_caller {
     };
     ($raw_fn_opt:expr) => {
         unsafe {
-            use alloc::format;
+            use $crate::alloc::format;
             let raw_fn = $raw_fn_opt
                 .ok_or_else(|| anyhow::anyhow!("{} did not contain a function pointer", stringify!($raw_fn_opt)))?;
             Ok::<_, Error>(raw_fn())
@@ -280,6 +288,7 @@ macro_rules! crankstart_game {
     };
 }
 
+#[cfg(not(any(test, doctest)))]
 fn abort_with_addr(addr: usize) -> ! {
     let p = addr as *mut i32;
     unsafe {
@@ -288,21 +297,17 @@ fn abort_with_addr(addr: usize) -> ! {
     core::intrinsics::abort()
 }
 
+#[cfg(not(any(test, doctest)))]
 #[panic_handler]
 fn panic(#[allow(unused)] panic_info: &PanicInfo) -> ! {
     use arrayvec::ArrayString;
     use core::fmt::Write;
     if let Some(location) = panic_info.location() {
         let mut output = ArrayString::<1024>::new();
-        let payload = if let Some(payload) = panic_info.payload().downcast_ref::<&str>() {
-            payload
-        } else {
-            "no payload"
-        };
         write!(
             output,
             "panic: {} @ {}:{}\0",
-            payload,
+            panic_info.message(),
             location.file(),
             location.line()
         )
@@ -326,10 +331,13 @@ fn panic(#[allow(unused)] panic_info: &PanicInfo) -> ! {
 
 use core::alloc::{GlobalAlloc, Layout};
 
+#[cfg(not(any(test, doctest)))]
 pub(crate) struct PlaydateAllocator;
 
+#[cfg(not(any(test, doctest)))]
 unsafe impl Sync for PlaydateAllocator {}
 
+#[cfg(not(any(test, doctest)))]
 unsafe impl GlobalAlloc for PlaydateAllocator {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
         let system = System::get();
@@ -346,10 +354,13 @@ unsafe impl GlobalAlloc for PlaydateAllocator {
     }
 }
 
+#[cfg(not(any(test, doctest)))]
 #[global_allocator]
 pub(crate) static mut A: PlaydateAllocator = PlaydateAllocator;
 
 // define what happens in an Out Of Memory (OOM) condition
+
+#[cfg(not(any(test, doctest)))]
 #[alloc_error_handler]
 fn alloc_error(_layout: Layout) -> ! {
     System::log_to_console("Out of Memory\0");
@@ -469,6 +480,7 @@ pub extern "C" fn _kill() {}
 #[no_mangle]
 pub extern "C" fn _getpid() {}
 
+#[cfg(not(any(test, doctest)))]
 #[no_mangle]
 pub extern "C" fn rust_eh_personality() {
     unimplemented!();

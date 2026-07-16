@@ -17,7 +17,10 @@ impl Display {
     }
 
     pub fn get() -> Self {
-        unsafe { DISPLAY.clone() }
+        #[allow(static_mut_refs)]
+        unsafe {
+            DISPLAY.clone()
+        }
     }
 
     pub fn get_size(&self) -> Result<ScreenSize, Error> {

@@ -3,7 +3,7 @@
 //!
 //! For example, to play an audio sample (sound effect):
 //!
-//! ```rust
+//! ```rust,ignore
 //! let sound = Sound::get();
 //! let player = sound.get_sample_player()?;
 //! let mut sample = sound.load_audio_sample("test.wav")?;
@@ -12,7 +12,7 @@
 //! ```
 //!
 //! To play a music file:
-//! ```rust
+//! ```rust,ignore
 //! let music = Sound::get().get_file_player()?;
 //! music.load_into_player("music.pda")?;
 //! music.play(0)?;
@@ -87,7 +87,10 @@ impl Sound {
 
     /// Gets a handle to the Sound system.  This is the primary entry point for users.
     pub fn get() -> Self {
-        unsafe { SOUND.clone() }
+        #[allow(static_mut_refs)]
+        unsafe {
+            SOUND.clone()
+        }
     }
 
     /// Get a `FilePlayer` that can be used to stream audio from disk, e.g. for music.

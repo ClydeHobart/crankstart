@@ -1,6 +1,8 @@
 use {
-    crate::{log_to_console, pd_func_caller, pd_func_caller_log},
-    alloc::{boxed::Box, format, string::String, vec::Vec},
+    crate::{
+        alloc::{boxed::Box, format, string::String, vec, vec::Vec},
+        log_to_console, pd_func_caller, pd_func_caller_log,
+    },
     anyhow::{ensure, Error},
     core::ptr,
     crankstart_sys::{ctypes::c_void, FileOptions, PDButtons, SDFile},
@@ -47,7 +49,10 @@ impl FileSystem {
     }
 
     pub fn get() -> Self {
-        unsafe { FILE_SYSTEM.clone() }
+        #[allow(static_mut_refs)]
+        unsafe {
+            FILE_SYSTEM.clone()
+        }
     }
 
     pub fn listfiles(&self, path: &str, show_invisible: bool) -> Result<Vec<String>, Error> {
@@ -109,7 +114,7 @@ impl FileSystem {
 
     pub fn read_file_as_string(&self, path: &str) -> Result<String, Error> {
         let stat = self.stat(path)?;
-        let mut buffer = alloc::vec![0; stat.size as usize];
+        let mut buffer = vec![0; stat.size as usize];
         let sd_file = self.open(path, FileOptions::kFileRead | FileOptions::kFileReadData)?;
         sd_file.read(&mut buffer)?;
         String::from_utf8(buffer).map_err(Error::msg)

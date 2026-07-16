@@ -1,6 +1,5 @@
 use {
-    crate::pd_func_caller,
-    alloc::string::String,
+    crate::{alloc::string::String, pd_func_caller},
     anyhow::{anyhow, Error},
     core::ptr,
     crankstart_sys::{ctypes, lua_CFunction},
@@ -20,7 +19,10 @@ impl Lua {
     }
 
     pub fn get() -> Self {
-        unsafe { LUA.clone() }
+        #[allow(static_mut_refs)]
+        unsafe {
+            LUA.clone()
+        }
     }
 
     pub fn add_function(&self, f: lua_CFunction, name: &str) -> Result<(), Error> {

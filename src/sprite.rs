@@ -126,6 +126,7 @@ extern "C" fn get_sprite_collision_response(
     sprite: *mut crankstart_sys::LCDSprite,
     other: *mut crankstart_sys::LCDSprite,
 ) -> SpriteCollisionResponseType {
+    #[allow(static_mut_refs)]
     if let Some(collision_responses) = unsafe { SPRITE_COLLISION_RESPONSES.as_ref() } {
         let collider = collision_responses.get(&(sprite as *const crankstart_sys::LCDSprite));
         if let Some(collider) = collider {
@@ -151,6 +152,7 @@ impl SpriteInner {
     ) -> Result<(), Error> {
         if let Some(response_type) = response_type {
             unsafe {
+                #[allow(static_mut_refs)]
                 if let Some(collision_responses) = SPRITE_COLLISION_RESPONSES.as_mut() {
                     collision_responses.insert(self.raw_sprite, response_type);
                 } else {
@@ -161,6 +163,7 @@ impl SpriteInner {
         } else {
             self.set_collision_response_function(None)?;
             unsafe {
+                #[allow(static_mut_refs)]
                 if let Some(collision_responses) = SPRITE_COLLISION_RESPONSES.as_mut() {
                     collision_responses
                         .remove(&(self.raw_sprite as *const crankstart_sys::LCDSprite));
@@ -343,6 +346,7 @@ impl Drop for SpriteInner {
     fn drop(&mut self) {
         pd_func_caller_log!((*self.playdate_sprite).freeSprite, self.raw_sprite);
         unsafe {
+            #[allow(static_mut_refs)]
             if let Some(collision_responses) = SPRITE_COLLISION_RESPONSES.as_mut() {
                 collision_responses.remove(&(self.raw_sprite as *const crankstart_sys::LCDSprite));
             }
@@ -415,7 +419,7 @@ impl Sprite {
     /// Returns a reference to the bitmap assigned to the sprite, if any.  Specifically,
     /// returns Err if the inner data is already mutably borrowed; Ok(None) if no sprite has
     /// been assigned; Ok(Some(Ref<Bitmap>)) if a sprite has been assigned.
-    pub fn get_image(&self) -> Result<Option<Ref<Bitmap>>> {
+    pub fn get_image<'s>(&'s self) -> Result<Option<Ref<'s, Bitmap>>> {
         let borrowed: Ref<SpriteInner> = self.inner.try_borrow().map_err(Error::msg)?;
         let filtered: Result<Ref<Bitmap>, _> =
             Ref::filter_map(borrowed, |b: &SpriteInner| b.get_image());
@@ -558,7 +562,10 @@ impl SpriteManager {
     }
 
     pub fn get_mut() -> &'static mut SpriteManager {
-        unsafe { SPRITE_MANAGER.as_mut().expect("SpriteManager") }
+        unsafe {
+            #[allow(static_mut_refs)]
+            SPRITE_MANAGER.as_mut().expect("SpriteManager")
+        }
     }
 
     pub fn new_sprite(&mut self) -> Result<Sprite, Error> {

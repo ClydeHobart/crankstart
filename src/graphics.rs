@@ -1,10 +1,10 @@
 use {
     crate::{
+        alloc::{format, rc::Rc, vec::Vec},
         geometry::{ScreenPoint, ScreenRect, ScreenSize, ScreenVector},
         log_to_console, pd_func_caller, pd_func_caller_log,
         system::System,
     },
-    alloc::{format, rc::Rc, vec::Vec},
     anyhow::{anyhow, ensure, Error},
     core::{cell::RefCell, ops::RangeInclusive, ptr, slice},
     crankstart_sys::{ctypes::c_int, LCDBitmapTable, LCDPattern},
@@ -474,7 +474,10 @@ impl Graphics {
     }
 
     pub fn get() -> Self {
-        unsafe { GRAPHICS.clone() }
+        #[allow(static_mut_refs)]
+        unsafe {
+            GRAPHICS.clone()
+        }
     }
 
     pub fn get_ptr() -> *const crankstart_sys::playdate_graphics {
@@ -657,7 +660,7 @@ impl Graphics {
         let mut coords_seq = coords
             .iter()
             .flat_map(|pt| [pt.x, pt.y])
-            .collect::<alloc::vec::Vec<_>>();
+            .collect::<Vec<_>>();
 
         pd_func_caller!(
             (*self.0).fillPolygon,

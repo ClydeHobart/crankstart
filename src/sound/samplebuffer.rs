@@ -1,8 +1,7 @@
 use super::AudioSample;
-use crate::{log_to_console, pd_func_caller, pd_func_caller_log};
+use crate::{alloc::rc::Rc, log_to_console, pd_func_caller, pd_func_caller_log};
 use crankstart_sys::{ctypes, SoundFormat};
 
-use alloc::rc::Rc;
 use anyhow::{anyhow, ensure, Error, Result};
 use core::{mem::size_of, slice};
 

@@ -1,7 +1,9 @@
 [package]
 name = "crankstart"
 version = "0.1.2"
-authors = ["Rob Tsuk <rob@tsuk.com>"]
+authors = [
+    "Rob Tsuk <rob@tsuk.com>",
+    "ClydeHobart"]
 edition = "2018"
 description = "A barely functional, wildly incomplete and basically undocumented Rust crate whose aim is to let you write games for the [Playdate handheld gaming system](https://play.date) in [Rust](https://www.rust-lang.org)."
 license = "MIT"
@@ -20,6 +22,11 @@ lto = true
 [profile.release]
 panic = "abort"
 opt-level = 'z'
+lto = true
+
+[profile.test]
+panic = "abort"
+opt-level = 2
 lto = true
 
 [workspace]

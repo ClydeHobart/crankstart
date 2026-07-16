@@ -1,7 +1,4 @@
-use alloc::boxed::Box;
-use alloc::rc::Rc;
-use alloc::string::String;
-use alloc::vec::Vec;
+use crate::alloc::{boxed::Box, rc::Rc, string::String, vec::Vec};
 use core::cell::RefCell;
 
 use anyhow::anyhow;
@@ -27,7 +24,10 @@ impl System {
     }
 
     pub fn get() -> Self {
-        unsafe { SYSTEM.clone() }
+        unsafe {
+            #[allow(static_mut_refs)]
+            SYSTEM.clone()
+        }
     }
 
     pub(crate) fn realloc(&self, ptr: *mut c_void, size: usize) -> *mut c_void {
