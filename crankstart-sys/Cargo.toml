@@ -14,3 +14,4 @@ default = ["euclid"]
 
 [dependencies]
 euclid = { version = "0.22.9", default-features = false, features = [ "libm" ], optional = true }
+static_assertions = { version = "1.1" }
