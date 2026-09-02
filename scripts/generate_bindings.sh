@@ -10,7 +10,7 @@ if [ "$?" -ne 0 ]; then
 fi
 
 # POSIX sh "array" used to store common parameters to all bindgen calls
-set -- "$crankstart_crate_dir/crankstart-sys/wrapper.h" \
+set -- "$crankstart_crate_dir/wrapper.h" \
   "--use-core" \
   "--ctypes-prefix"         "ctypes" \
   "--with-derive-default" \
@@ -36,14 +36,14 @@ bindgen "$@" \
   -target x86_64 \
   -I"$PLAYDATE_C_API" \
   -I"$(arm-none-eabi-gcc -print-sysroot)/include" \
-  -DTARGET_EXTENSION > "${crankstart_crate_dir}/crankstart-sys/src/bindings_x86.rs"
+  -DTARGET_EXTENSION > "${crankstart_crate_dir}/src/pd_api/bindings_x86.rs"
 
 bindgen "$@" \
   -- \
   -target aarch64 \
   -I"$PLAYDATE_C_API" \
   -I"$(arm-none-eabi-gcc -print-sysroot)/include" \
-  -DTARGET_EXTENSION > "${crankstart_crate_dir}/crankstart-sys/src/bindings_aarch64.rs"
+  -DTARGET_EXTENSION > "${crankstart_crate_dir}/src/pd_api/bindings_aarch64.rs"
 
 bindgen "$@" \
   -- \
@@ -51,4 +51,4 @@ bindgen "$@" \
   -I"$(arm-none-eabi-gcc -print-sysroot)/include" \
   -target thumbv7em-none-eabihf \
   -fshort-enums \
-  -DTARGET_EXTENSION > "${crankstart_crate_dir}/crankstart-sys/src/bindings_playdate.rs"
+  -DTARGET_EXTENSION > "${crankstart_crate_dir}/src/pd_api/bindings_playdate.rs"

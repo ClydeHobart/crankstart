@@ -1,195 +1,51 @@
-use {
-    crate::{
-        alloc::{boxed::Box, format, string::String, vec, vec::Vec},
-        log_to_console, pd_func_caller, pd_func_caller_log,
+use crate::{
+    define_crankstart_api,
+    pd_api::{
+        ctypes::{c_char, c_void},
+        playdate_file, FileOptions, FileStat, SDFile,
     },
-    anyhow::{ensure, Error},
-    core::ptr,
-    crankstart_sys::{ctypes::c_void, FileOptions, PDButtons, SDFile},
-    cstr_core::CStr,
-    cstr_core::CString,
 };
 
-pub use crankstart_sys::FileStat;
-
-fn ensure_filesystem_success(result: i32, function_name: &str) -> Result<(), Error> {
-    if result < 0 {
-        let file_sys = FileSystem::get();
-        let err_result = pd_func_caller!((*file_sys.0).geterr)?;
-        let err_string = unsafe { CStr::from_ptr(err_result) };
-
-        Err(Error::msg(format!(
-            "Error {} from {}: {:?}",
-            result, function_name, err_string
-        )))
-    } else {
-        Ok(())
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct FileSystem(*const crankstart_sys::playdate_file);
-
-extern "C" fn list_files_callback(
-    filename: *const crankstart_sys::ctypes::c_char,
-    userdata: *mut core::ffi::c_void,
-) {
-    unsafe {
-        let path = CStr::from_ptr(filename).to_string_lossy().into_owned();
-        let files_ptr: *mut Vec<String> = userdata as *mut Vec<String>;
-        (*files_ptr).push(path);
-    }
-}
-
-impl FileSystem {
-    pub(crate) fn new(file: *const crankstart_sys::playdate_file) {
-        unsafe {
-            FILE_SYSTEM = FileSystem(file);
-        }
-    }
-
-    pub fn get() -> Self {
-        #[allow(static_mut_refs)]
-        unsafe {
-            FILE_SYSTEM.clone()
-        }
-    }
-
-    pub fn listfiles(&self, path: &str, show_invisible: bool) -> Result<Vec<String>, Error> {
-        let mut files: Box<Vec<String>> = Box::default();
-        let files_ptr: *mut Vec<String> = &mut *files;
-        let c_path = CString::new(path).map_err(Error::msg)?;
-        let result = pd_func_caller!(
-            (*self.0).listfiles,
-            c_path.as_ptr(),
-            Some(list_files_callback),
-            files_ptr as *mut core::ffi::c_void,
-            if show_invisible { 1 } else { 0 }
-        )?;
-        ensure_filesystem_success(result, "listfiles")?;
-        Ok(*files)
-    }
-
-    pub fn stat(&self, path: &str) -> Result<FileStat, Error> {
-        let c_path = CString::new(path).map_err(Error::msg)?;
-        let mut file_stat = FileStat::default();
-        let result = pd_func_caller!((*self.0).stat, c_path.as_ptr(), &mut file_stat)?;
-        ensure_filesystem_success(result, "stat")?;
-        Ok(file_stat)
-    }
-
-    pub fn mkdir(&self, path: &str) -> Result<(), Error> {
-        let c_path = CString::new(path).map_err(Error::msg)?;
-        let result = pd_func_caller!((*self.0).mkdir, c_path.as_ptr())?;
-        ensure_filesystem_success(result, "mkdir")?;
-        Ok(())
-    }
-
-    pub fn unlink(&self, path: &str, recursive: bool) -> Result<(), Error> {
-        let c_path = CString::new(path).map_err(Error::msg)?;
-        let result = pd_func_caller!((*self.0).unlink, c_path.as_ptr(), recursive as i32)?;
-        ensure_filesystem_success(result, "unlink")?;
-        Ok(())
-    }
-
-    pub fn rename(&self, from_path: &str, to_path: &str) -> Result<(), Error> {
-        let c_from_path = CString::new(from_path).map_err(Error::msg)?;
-        let c_to_path = CString::new(to_path).map_err(Error::msg)?;
-        let result = pd_func_caller!((*self.0).rename, c_from_path.as_ptr(), c_to_path.as_ptr())?;
-        ensure_filesystem_success(result, "rename")?;
-        Ok(())
-    }
-
-    pub fn open(&self, path: &str, options: FileOptions) -> Result<File, Error> {
-        let c_path = CString::new(path).map_err(Error::msg)?;
-        let raw_file = pd_func_caller!((*self.0).open, c_path.as_ptr(), options)?;
-        ensure!(
-            !raw_file.is_null(),
-            "Failed to open file at {} with options {:?}",
-            path,
-            options
-        );
-        Ok(File(raw_file))
-    }
-
-    pub fn read_file_as_string(&self, path: &str) -> Result<String, Error> {
-        let stat = self.stat(path)?;
-        let mut buffer = vec![0; stat.size as usize];
-        let sd_file = self.open(path, FileOptions::kFileRead | FileOptions::kFileReadData)?;
-        sd_file.read(&mut buffer)?;
-        String::from_utf8(buffer).map_err(Error::msg)
-    }
-}
-
-static mut FILE_SYSTEM: FileSystem = FileSystem(ptr::null_mut());
-
-#[repr(i32)]
-#[derive(Debug, Clone, Copy)]
-pub enum Whence {
-    Set = crankstart_sys::SEEK_SET as i32,
-    Cur = crankstart_sys::SEEK_CUR as i32,
-    End = crankstart_sys::SEEK_END as i32,
-}
-
-#[derive(Debug)]
-pub struct File(*mut SDFile);
-
-impl File {
-    pub fn read(&self, buf: &mut [u8]) -> Result<usize, Error> {
-        let file_sys = FileSystem::get();
-        let sd_file = self.0;
-        let result = pd_func_caller!(
-            (*file_sys.0).read,
-            sd_file,
-            buf.as_mut_ptr() as *mut core::ffi::c_void,
-            buf.len() as u32
-        )?;
-        ensure_filesystem_success(result, "read")?;
-        Ok(result as usize)
-    }
-
-    pub fn write(&self, buf: &[u8]) -> Result<usize, Error> {
-        let file_sys = FileSystem::get();
-        let sd_file = self.0;
-        let result = pd_func_caller!(
-            (*file_sys.0).write,
-            sd_file,
-            buf.as_ptr() as *mut core::ffi::c_void,
-            buf.len() as u32
-        )?;
-        ensure_filesystem_success(result, "write")?;
-        Ok(result as usize)
-    }
-
-    pub fn flush(&self) -> Result<(), Error> {
-        let file_sys = FileSystem::get();
-        let sd_file = self.0;
-        let result = pd_func_caller!((*file_sys.0).flush, sd_file)?;
-        ensure_filesystem_success(result, "flush")?;
-        Ok(())
-    }
-
-    pub fn tell(&self) -> Result<i32, Error> {
-        let file_sys = FileSystem::get();
-        let sd_file = self.0;
-        let result = pd_func_caller!((*file_sys.0).tell, sd_file)?;
-        ensure_filesystem_success(result, "tell")?;
-        Ok(result)
-    }
-
-    pub fn seek(&self, pos: i32, whence: Whence) -> Result<(), Error> {
-        let file_sys = FileSystem::get();
-        let sd_file = self.0;
-        let result = pd_func_caller!((*file_sys.0).seek, sd_file, pos, whence as i32)?;
-        ensure_filesystem_success(result, "seek")?;
-        Ok(())
-    }
-}
-
-impl Drop for File {
-    fn drop(&mut self) {
-        let file_sys = FileSystem::get();
-        let sd_file = self.0;
-        pd_func_caller_log!((*file_sys.0).close, sd_file);
+define_crankstart_api! {
+    #[allow(dead_code)]
+    pub struct FileAPI => playdate_file {
+        ; // No sub-API fields
+        pub(crate) geterr: unsafe extern "C" fn() -> *const c_char,
+        pub(crate) listfiles: unsafe extern "C" fn(
+            path: *const c_char,
+            callback: Option<unsafe extern "C" fn(path: *const c_char, userdata: *mut c_void)>,
+            userdata: *mut c_void,
+            showhidden: i32,
+        ) -> i32,
+        pub(crate) stat: unsafe extern "C" fn(path: *const c_char, stat: *mut FileStat) -> i32,
+        pub(crate) mkdir: unsafe extern "C" fn(path: *const c_char) -> i32,
+        pub(crate) unlink: unsafe extern "C" fn(
+            name: *const c_char,
+            recursive: i32,
+        ) -> i32,
+        pub(crate) rename: unsafe extern "C" fn(
+            from: *const c_char,
+            to: *const c_char,
+        ) -> i32,
+        pub(crate) open:
+            unsafe extern "C" fn(name: *const c_char, mode: FileOptions) -> *mut SDFile,
+        pub(crate) close: unsafe extern "C" fn(file: *mut SDFile) -> i32,
+        pub(crate) read: unsafe extern "C" fn(
+            file: *mut SDFile,
+            buf: *mut c_void,
+            len: u32,
+        ) -> i32,
+        pub(crate) write: unsafe extern "C" fn(
+            file: *mut SDFile,
+            buf: *const c_void,
+            len: u32,
+        ) -> i32,
+        pub(crate) flush: unsafe extern "C" fn(file: *mut SDFile) -> i32,
+        pub(crate) tell: unsafe extern "C" fn(file: *mut SDFile) -> i32,
+        pub(crate) seek: unsafe extern "C" fn(
+            file: *mut SDFile,
+            pos: i32,
+            whence: i32,
+        ) -> i32,
     }
 }

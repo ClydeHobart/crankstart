@@ -1,5 +1,6 @@
 #![cfg_attr(not(any(test, doctest)), no_std)]
-#![cfg_attr(not(any(test, doctest)), feature(alloc_error_handler, core_intrinsics))]
+#![cfg_attr(not(any(test, doctest)), feature(alloc_error_handler))]
+#![feature(core_intrinsics)]
 #![allow(internal_features)]
 #![allow(unused_variables, dead_code, unused_imports)]
 
@@ -9,281 +10,373 @@ pub extern crate alloc;
 #[cfg(any(test, doctest))]
 pub use std as alloc;
 
-// #![cfg_attr(not(any(test, doctest)), no_std)]
+use {
+    self::{
+        display::DisplayAPI,
+        file::FileAPI,
+        graphics::GraphicsAPI,
+        json::JSONAPI,
+        lua::LuaAPI,
+        pd_api::{ctypes::c_void, PDSystemEvent, PlaydateAPI},
+        scoreboards::ScoreboardsAPI,
+        sound::SoundAPI,
+        sprite::SpriteAPI,
+        sys::SysAPI,
+        util::{singleton::Singleton, string::TempString},
+    },
+    anyhow::{Error, Result},
+    core::{
+        cell::{Ref, RefCell, RefMut},
+        convert::TryFrom,
+        mem::MaybeUninit,
+    },
+};
 
-// #[cfg(not(any(test, doctest)))]
+#[cfg(not(any(test, doctest)))]
+use core::{
+    alloc::{GlobalAlloc, Layout},
+    panic::PanicInfo,
+};
 
 pub mod display;
 pub mod file;
-pub mod geometry;
 pub mod graphics;
+pub mod json;
 pub mod lua;
+pub mod pd_api;
+pub mod scoreboards;
 pub mod sound;
 pub mod sprite;
-pub mod system;
+pub mod sys;
+pub mod util;
 
-use {
-    crate::{
-        display::Display,
-        file::FileSystem,
-        graphics::{Graphics, PDRect},
-        lua::Lua,
-        sound::Sound,
-        sprite::{
-            Sprite, SpriteCollideFunction, SpriteDrawFunction, SpriteManager, SpriteUpdateFunction,
+define_crankstart_api! {
+    #[allow(dead_code)]
+    pub struct CrankstartAPI => PlaydateAPI {
+        pub display: DisplayAPI,
+        pub file: FileAPI,
+        pub graphics: GraphicsAPI,
+        pub json: JSONAPI,
+        pub lua: LuaAPI,
+        pub scoreboards: ScoreboardsAPI,
+        pub sound: SoundAPI,
+        pub sprite: SpriteAPI,
+        pub system: SysAPI;
+        // No fn fields.
+    }
+}
+
+impl CrankstartAPI {}
+
+impl_singleton!(CrankstartAPI);
+
+pub struct ShouldUpdateDisplay(bool);
+
+impl From<bool> for ShouldUpdateDisplay {
+    fn from(value: bool) -> Self {
+        Self(value)
+    }
+}
+
+pub trait Game: Singleton {
+    fn new() -> Result<Self>;
+
+    fn update(&mut self) -> Result<ShouldUpdateDisplay>;
+
+    fn handle_event(&mut self, event: PDSystemEvent, arg: u32);
+}
+
+pub fn game_handle_event<G: Game>(playdate: *mut PlaydateAPI, event: PDSystemEvent, arg: u32) {
+    if event == PDSystemEvent::kEventInit {
+        if let Err(error) = game_init::<G>(playdate) {
+            // This might fail, if the `CrankstartAPI` failed to initialize.
+            eprintln!("game_init failed: {error:?}");
+        }
+    }
+
+    if let Some(mut game) = G::try_get_mut() {
+        game.handle_event(event, arg);
+    }
+}
+
+fn game_init<G: Game>(playdate_api: *mut PlaydateAPI) -> Result<()> {
+    let playdate_api: &PlaydateAPI = q!(unsafe { playdate_api.as_ref() }.ok_or(()));
+
+    CrankstartAPI::set(CrankstartAPI::try_from(playdate_api).map_err(Error::msg)?);
+
+    G::set(G::new()?);
+
+    CrankstartAPI::get()
+        .system
+        .set_update_callback::<G>(Some(game_update::<G>));
+
+    Ok(())
+}
+
+extern "C" fn game_update<G: Game>(user_data: *mut c_void) -> i32 {
+    game_update_internal::<G>(user_data).map_or_else(
+        |error| {
+            eprintln!("game_update_internal failed: {error:?}");
+
+            0_i32
         },
-        system::System,
-    },
-    alloc::boxed::Box,
-    anyhow::Error,
-    core::{fmt, panic::PanicInfo},
-    crankstart_sys::{playdate_sprite, LCDRect, LCDSprite, SpriteCollisionResponseType},
-};
-
-pub struct Playdate {
-    playdate: *const crankstart_sys::PlaydateAPI,
+        |should_update_display| should_update_display.0 as i32,
+    )
 }
 
-impl Playdate {
-    pub fn new(
-        playdate: *const crankstart_sys::PlaydateAPI,
-        sprite_update: SpriteUpdateFunction,
-        sprite_draw: SpriteDrawFunction,
-    ) -> Result<Self, Error> {
-        let playdate_api = unsafe { *playdate };
-        let system = playdate_api.system;
-        System::new(system);
-        let playdate_sprite = playdate_api.sprite;
-        SpriteManager::new(playdate_sprite, sprite_update, sprite_draw);
-        let file = playdate_api.file;
-        FileSystem::new(file);
-        let graphics = playdate_api.graphics;
-        Graphics::new(graphics);
-        let lua = playdate_api.lua;
-        Lua::new(lua);
-        let sound = playdate_api.sound;
-        Sound::new(sound)?;
-        let display = playdate_api.display;
-        Display::new(display);
-        Ok(Self { playdate })
-    }
-}
+fn game_update_internal<G: Game>(user_data: *mut c_void) -> Result<ShouldUpdateDisplay> {
+    let game_mut_ptr: *mut G = user_data.cast();
 
-#[macro_export]
-macro_rules! log_to_console {
-    ($($arg:tt)*) => ($crate::system::System::log_to_console(&$crate::alloc::format!($($arg)*)));
-}
+    ensure!(game_mut_ptr.is_aligned());
 
-#[macro_export]
-macro_rules! pd_func_caller {
-    ($raw_fn_opt:expr, $($arg:tt)*) => {
-        unsafe {
-            use $crate::alloc::format;
-            let raw_fn = $raw_fn_opt
-                .ok_or_else(|| anyhow::anyhow!("{} did not contain a function pointer", stringify!($raw_fn_opt)))?;
-            Ok::<_, Error>(raw_fn($($arg)*))
-        }
-    };
-    ($raw_fn_opt:expr) => {
-        unsafe {
-            use $crate::alloc::format;
-            let raw_fn = $raw_fn_opt
-                .ok_or_else(|| anyhow::anyhow!("{} did not contain a function pointer", stringify!($raw_fn_opt)))?;
-            Ok::<_, Error>(raw_fn())
-        }
-    };
-}
+    let game: &mut G = q!(unsafe { game_mut_ptr.as_mut().ok_or(()) });
 
-#[macro_export]
-macro_rules! pd_func_caller_log {
-    ($raw_fn_opt:expr, $($arg:tt)*) => {
-        unsafe {
-            if let Some(raw_fn) = $raw_fn_opt {
-                raw_fn($($arg)*);
-            } else {
-                $crate::log_to_console!("{} did not contain a function pointer", stringify!($raw_fn_opt));
-            }
-        }
-    };
-}
-
-pub trait Game {
-    fn update_sprite(&mut self, sprite: &mut Sprite, playdate: &mut Playdate) -> Result<(), Error> {
-        use alloc::format;
-        Err(anyhow::anyhow!("Error: sprite {:?} needs update but this game hasn't implemented the update_sprite trait method", sprite))
-    }
-
-    fn draw_sprite(
-        &self,
-        sprite: &Sprite,
-        bounds: &PDRect,
-        draw_rect: &PDRect,
-        playdate: &Playdate,
-    ) -> Result<(), Error> {
-        use alloc::format;
-        Err(anyhow::anyhow!("Error: sprite {:?} needs to draw but this game hasn't implemented the draw_sprite trait method", sprite))
-    }
-
-    fn update(&mut self, playdate: &mut Playdate) -> Result<(), Error>;
-
-    fn draw_fps(&self) -> bool {
-        false
-    }
-
-    fn draw_and_update_sprites(&self) -> bool {
-        true
-    }
-}
-
-pub type GamePtr<T> = Box<T>;
-
-pub struct GameRunner<T: Game> {
-    game: Option<GamePtr<T>>,
-    init_failed: bool,
-    playdate: Playdate,
-}
-
-impl<T: 'static + Game> GameRunner<T> {
-    pub fn new(game: Option<GamePtr<T>>, playdate: Playdate) -> Self {
-        Self {
-            init_failed: false,
-            game,
-            playdate,
-        }
-    }
-
-    pub fn update(&mut self) {
-        if self.init_failed {
-            return;
-        }
-
-        if let Some(game) = self.game.as_mut() {
-            if let Err(err) = game.update(&mut self.playdate) {
-                log_to_console!("Error in update: {err:#}")
-            }
-            if game.draw_and_update_sprites() {
-                if let Err(err) = SpriteManager::get_mut().update_and_draw_sprites() {
-                    log_to_console!("Error from sprite_manager.update_and_draw_sprites: {err:#}")
-                }
-            }
-            if game.draw_fps() {
-                if let Err(err) = System::get().draw_fps(0, 0) {
-                    log_to_console!("Error from system().draw_fps: {err:#}")
-                }
-            }
-        } else {
-            log_to_console!("can't get game to update");
-            self.init_failed = true;
-        }
-    }
-
-    pub fn update_sprite(&mut self, sprite: *mut LCDSprite) {
-        if let Some(game) = self.game.as_mut() {
-            if let Some(mut sprite) = SpriteManager::get_mut().get_sprite(sprite) {
-                if let Err(err) = game.update_sprite(&mut sprite, &mut self.playdate) {
-                    log_to_console!("Error in update_sprite: {err:#}")
-                }
-            } else {
-                log_to_console!("Can't find sprite {sprite:?} to update");
-            }
-        } else {
-            log_to_console!("can't get game to update_sprite");
-        }
-    }
-
-    pub fn draw_sprite(&mut self, sprite: *mut LCDSprite, bounds: PDRect, draw_rect: PDRect) {
-        if let Some(game) = self.game.as_ref() {
-            if let Some(sprite) = SpriteManager::get_mut().get_sprite(sprite) {
-                if let Err(err) = game.draw_sprite(&sprite, &bounds, &draw_rect, &self.playdate) {
-                    log_to_console!("Error in draw_sprite: {err:#}")
-                }
-            } else {
-                log_to_console!("Can't find sprite {sprite:?} to draw");
-            }
-        } else {
-            log_to_console!("can't get game to draw_sprite");
-        }
-    }
-
-    pub fn playdate_sprite(&self) -> *const playdate_sprite {
-        SpriteManager::get_mut().playdate_sprite
-    }
+    game.update()
 }
 
 #[macro_export]
 macro_rules! crankstart_game {
     ($game_struct:ty) => {
-        crankstart_game!($game_struct, PDSystemEvent::kEventInit);
+        $crate::impl_singleton!($game_struct);
+
+        #[no_mangle]
+        extern "C" fn eventHandler(
+            playdate: *mut $crate::pd_api::PlaydateAPI,
+            event: $crate::pd_api::PDSystemEvent,
+            arg: u32,
+        ) -> i32 {
+            $crate::game_handle_event::<$game_struct>(playdate, event, arg);
+
+            0
+        }
     };
-    ($game_struct:ty, $pd_system_event:expr) => {
-        pub mod game_setup {
-            extern crate alloc;
-            use super::*;
-            use {
-                alloc::{boxed::Box, format},
-                crankstart::{
-                    graphics::PDRect, log_to_console, sprite::SpriteManager, system::System,
-                    GameRunner, Playdate,
-                },
-                crankstart_sys::{
-                    LCDRect, LCDSprite, PDSystemEvent, PlaydateAPI, SpriteCollisionResponseType,
-                },
+}
+
+trait APITrait {
+    const SUB_API_COUNT: usize;
+    const FN_COUNT: usize;
+}
+
+#[macro_export]
+macro_rules! define_crankstart_api {
+    {
+        $(#[$struct_attr:meta])*
+        $struct_pub:vis struct $cs_api_ty:ident => $pd_api_ty:ty {
+            $(
+                $(#[$api_field_attr:meta])*
+                $api_pub:vis $api_field:ident: $cs_sub_api_ty:ty
+            ),*;
+            $(
+                $(#[$fn_field_attr:meta])*
+                $fn_pub:vis $fn_field:ident: $fn_ty:ty
+            ),* $(,)?
+            $(
+                ;
+
+                $(#[$data_field_attr:meta])*
+                $data_pub:vis $data_field:ident: $data_ty:ty,
+            )?
+        }
+    } => {
+        $(#[$struct_attr])*
+        $struct_pub struct $cs_api_ty {
+            $(
+                $(#[$api_field_attr])*
+                $api_pub $api_field: $cs_sub_api_ty,
+            )*
+            $(
+                $(#[$fn_field_attr])*
+                $fn_pub $fn_field: $fn_ty,
+            )*
+            $(
+                $(#[$data_field_attr])*
+                $data_pub $data_field: $data_ty,
+            )?
+        }
+
+        #[allow(non_snake_case)]
+        impl $crate::APITrait for $cs_api_ty {
+            const SUB_API_COUNT: usize = {
+                #[allow(unused_imports)]
+                use ::core::mem::size_of;
+
+                #[allow(unused_mut)]
+                let mut sub_api_count: usize = 0_usize;
+
+                $(
+                    // We just need something to specify which repeating symbol list we want to
+                    // expand.
+                    sub_api_count +=
+                        (size_of::<$cs_sub_api_ty>() == size_of::<$cs_sub_api_ty>()) as usize;
+                )*
+
+                sub_api_count
             };
+            const FN_COUNT: usize = {
+                #[allow(unused_imports)]
+                use ::core::mem::size_of;
 
-            static mut GAME_RUNNER: Option<GameRunner<$game_struct>> = None;
+                #[allow(unused_mut)]
+                let mut fn_count: usize = 0_usize;
 
-            extern "C" fn sprite_update(sprite: *mut LCDSprite) {
-                let game_runner = unsafe { GAME_RUNNER.as_mut().expect("GAME_RUNNER") };
-                game_runner.update_sprite(sprite);
-            }
+                $(
+                    // We just need something that'll instruct which repeating symbol we're trying
+                    // to use.
+                    fn_count += (size_of::<$fn_ty>() == size_of::<fn()>()) as usize;
+                )*
 
-            extern "C" fn sprite_draw(sprite: *mut LCDSprite, bounds: PDRect, drawrect: PDRect) {
-                let game_runner = unsafe { GAME_RUNNER.as_mut().expect("GAME_RUNNER") };
-                game_runner.draw_sprite(sprite, bounds, drawrect);
-            }
+                fn_count
+            };
+        }
 
-            extern "C" fn update(_user_data: *mut core::ffi::c_void) -> i32 {
-                let game_runner = unsafe { GAME_RUNNER.as_mut().expect("GAME_RUNNER") };
+        ::static_assertions::const_assert!(
+            (
+                <$cs_api_ty as $crate::APITrait>::SUB_API_COUNT
+                *
+                ::core::mem::size_of::<*const ()>()
+            ) + (
+                <$cs_api_ty as $crate::APITrait>::FN_COUNT
+                *
+                ::core::mem::size_of::<Option<fn()>>()
+            ) == ::core::mem::size_of::<$pd_api_ty>()
+        );
 
-                game_runner.update();
+        impl ::core::convert::TryFrom<&$pd_api_ty> for $cs_api_ty {
+            type Error = &'static str;
 
-                1
-            }
+            #[allow(non_snake_case)]
+            fn try_from(pd_api: &$pd_api_ty) -> Result<Self, Self::Error> {
+                $(
+                    let $api_field = {
+                        use core::convert::TryInto;
 
-            #[no_mangle]
-            extern "C" fn eventHandler(
-                playdate: *mut PlaydateAPI,
-                event: PDSystemEvent,
-                _arg: u32,
-            ) -> crankstart_sys::ctypes::c_int {
-                if event == $pd_system_event {
-                    // This would only fail if PlaydateAPI has null pointers, which shouldn't happen.
-                    let mut playdate = match Playdate::new(playdate, sprite_update, sprite_draw) {
-                        Ok(playdate) => playdate,
-                        Err(e) => {
-                            log_to_console!("Failed to construct Playdate system: {e:#}");
-                            return 1;
-                        }
+                        let pd_api_field_ptr = pd_api.$api_field;
+                        let pd_api_field_ref = unsafe { pd_api_field_ptr.as_ref() }
+                            .ok_or(concat!(
+                                stringify!($pd_api_ty),
+                                "::",
+                                stringify!($api_field),
+                                " was null"
+                            ))?;
+                        let cs_api_field = pd_api_field_ref.try_into()?;
+
+                        cs_api_field
                     };
-                    System::get()
-                        .set_update_callback(Some(update))
-                        .unwrap_or_else(|err| {
-                            log_to_console!("Got error while setting update callback: {err:#}");
-                        });
-                    let game = match <$game_struct>::new(&mut playdate) {
-                        Ok(game) => Some(game),
-                        Err(err) => {
-                            log_to_console!("Got error while creating game: {err:#}");
-                            None
-                        }
-                    };
+                )*
 
-                    unsafe {
-                        GAME_RUNNER = Some(GameRunner::new(game, playdate));
-                    }
-                }
-                0
+                $(
+                    let $fn_field = pd_api.$fn_field.ok_or(concat!(
+                        stringify!($pd_api_ty),
+                        "::",
+                        stringify!($fn_field),
+                        " was null"
+                    ))?;
+                )*
+
+                $(
+                    let $data_field: $data_ty = Default::default();
+                )?
+
+                Ok(Self {
+                    $($api_field,)*
+                    $($fn_field,)*
+                    $($data_field,)?
+                })
             }
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! str_lit {
+    ($str_lit:literal) => {
+        #[cfg(debug_assertions)]
+        {
+            $str_lit
+        }
+
+        #[cfg(not(debug_assertions))]
+        {
+            ""
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! ensure {
+    ($expr:expr) => {
+        if $expr {
+            Ok(())
+        } else {
+            Err(::anyhow::Error::msg(
+                #[cfg(debug_assertions)]
+                ::core::concat!(
+                    ::core::file!(),
+                    ":",
+                    ::core::line!(),
+                    ": \"",
+                    ::core::stringify!($expr),
+                    "\" was false"
+                ),
+                #[cfg(not(debug_assertions))]
+                "",
+            ))
+        }?
+    };
+}
+
+#[macro_export]
+macro_rules! q {
+    ($expr:expr) => {
+        ($expr).map_err(|_| {
+            ::anyhow::Error::msg(
+                #[cfg(debug_assertions)]
+                ::core::concat!(
+                    ::core::file!(),
+                    ":",
+                    ::core::line!(),
+                    ": \"",
+                    ::core::stringify!($expr),
+                    "\" was an error"
+                ),
+                #[cfg(not(debug_assertions))]
+                "",
+            )
+        })?
+    };
+}
+
+#[macro_export]
+macro_rules! println {
+    ($($arg:tt)*) => {
+        $crate::sys::SysAPI::print_internal(
+            |temp_string| {
+                $crate::write0!(temp_string, $($arg)*).ok();
+            },
+            $crate::sys::SysAPI::log_to_console
+        );
+    }
+}
+
+#[macro_export]
+macro_rules! eprintln {
+    ($($arg:tt)*) => {
+        $crate::sys::SysAPI::print_internal(
+            |temp_string| {
+                $crate::write0!(temp_string, $($arg)*).ok();
+            },
+            $crate::sys::SysAPI::error
+        );
+    }
+}
+
+#[macro_export]
+macro_rules! breakpoint_nop {
+    () => {
+        #[cfg(debug_assertions)]
+        {
+            ::core::hint::black_box(());
+            ::core::intrinsics::breakpoint();
         }
     };
 }
@@ -300,36 +393,24 @@ fn abort_with_addr(addr: usize) -> ! {
 #[cfg(not(any(test, doctest)))]
 #[panic_handler]
 fn panic(#[allow(unused)] panic_info: &PanicInfo) -> ! {
-    use arrayvec::ArrayString;
-    use core::fmt::Write;
     if let Some(location) = panic_info.location() {
-        let mut output = ArrayString::<1024>::new();
-        write!(
-            output,
-            "panic: {} @ {}:{}\0",
+        eprintln!(
+            "panic: {} @ {}:{}",
             panic_info.message(),
             location.file(),
-            location.line()
-        )
-        .expect("write");
-        System::log_to_console(output.as_str());
+            location.line(),
+        );
     } else {
-        System::log_to_console("panic\0");
+        eprintln!("panic");
     }
-    #[cfg(target_os = "macos")]
-    {
-        unsafe {
-            core::intrinsics::breakpoint();
-        }
-        abort_with_addr(0xdeadbeef);
-    }
-    #[cfg(not(target_os = "macos"))]
-    {
-        abort_with_addr(0xdeadbeef);
-    }
-}
 
-use core::alloc::{GlobalAlloc, Layout};
+    #[cfg(target_os = "macos")]
+    unsafe {
+        core::intrinsics::breakpoint();
+    }
+
+    abort_with_addr(0xdeadbeef);
+}
 
 #[cfg(not(any(test, doctest)))]
 pub(crate) struct PlaydateAllocator;
@@ -340,17 +421,15 @@ unsafe impl Sync for PlaydateAllocator {}
 #[cfg(not(any(test, doctest)))]
 unsafe impl GlobalAlloc for PlaydateAllocator {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-        let system = System::get();
-        system.realloc(core::ptr::null_mut(), layout.size()) as *mut u8
+        (CrankstartAPI::get().system.realloc)(core::ptr::null_mut(), layout.size()) as *mut u8
     }
 
     unsafe fn dealloc(&self, ptr: *mut u8, _layout: Layout) {
-        let system = System::get();
-        system.realloc(ptr as *mut core::ffi::c_void, 0);
+        (CrankstartAPI::get().system.realloc)(ptr as *mut core::ffi::c_void, 0);
     }
 
     unsafe fn realloc(&self, ptr: *mut u8, _layout: Layout, new_size: usize) -> *mut u8 {
-        System::get().realloc(ptr as *mut core::ffi::c_void, new_size) as *mut u8
+        (CrankstartAPI::get().system.realloc)(ptr as *mut core::ffi::c_void, new_size) as *mut u8
     }
 }
 
@@ -363,7 +442,7 @@ pub(crate) static mut A: PlaydateAllocator = PlaydateAllocator;
 #[cfg(not(any(test, doctest)))]
 #[alloc_error_handler]
 fn alloc_error(_layout: Layout) -> ! {
-    System::log_to_console("Out of Memory\0");
+    eprintln!("Out of Memory");
     abort_with_addr(0xDEADFA11);
 }
 
