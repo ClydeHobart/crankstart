@@ -7,7 +7,6 @@ use crate::{
 };
 
 define_crankstart_api! {
-    #[allow(dead_code, non_snake_case)]
     pub struct LuaAPI => playdate_lua {
         ; // No sub-API fields
         pub(crate) addFunction: unsafe extern "C" fn(

@@ -4,7 +4,6 @@ use crate::{
 };
 
 define_crankstart_api! {
-    #[allow(dead_code, non_snake_case)]
     pub struct OverdriveAPI => playdate_sound_effect_overdrive {
         ; // No sub-API fields
         pub(crate) newOverdrive: unsafe extern "C" fn() -> *mut Overdrive,

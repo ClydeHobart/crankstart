@@ -4,7 +4,6 @@ use crate::{
 };
 
 define_crankstart_api! {
-    #[allow(dead_code, non_snake_case)]
     pub struct EnvelopeAPI => playdate_sound_envelope {
         ; // No sub-API fields
         pub(crate) newEnvelope: unsafe extern "C" fn(

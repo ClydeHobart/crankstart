@@ -4,7 +4,6 @@ use crate::{
 };
 
 define_crankstart_api! {
-    #[allow(dead_code, non_snake_case)]
     pub struct SampleAPI => playdate_sound_sample {
         ; // No sub-API fields
         pub(crate) newSampleBuffer: unsafe extern "C" fn(byteCount: i32) -> *mut AudioSample,

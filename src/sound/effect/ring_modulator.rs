@@ -4,7 +4,6 @@ use crate::{
 };
 
 define_crankstart_api! {
-    #[allow(dead_code, non_snake_case)]
     pub struct RingModulatorAPI => playdate_sound_effect_ringmodulator {
         ; // No sub-API fields
         pub(crate) newRingmod: unsafe extern "C" fn() -> *mut RingModulator,

@@ -7,7 +7,6 @@ use crate::{
 };
 
 define_crankstart_api! {
-    #[allow(dead_code)]
     pub struct FileAPI => playdate_file {
         ; // No sub-API fields
         pub(crate) geterr: unsafe extern "C" fn() -> *const c_char,

@@ -14,7 +14,6 @@ use {
 pub mod video;
 
 define_crankstart_api! {
-    #[allow(dead_code, non_snake_case)]
     pub struct GraphicsAPI => playdate_graphics {
         pub video: VideoAPI;
         pub(crate) clear: unsafe extern "C" fn(color: LCDColor),

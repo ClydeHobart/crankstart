@@ -4,7 +4,6 @@ use crate::{
 };
 
 define_crankstart_api! {
-    #[allow(dead_code, non_snake_case)]
     pub struct OnePoleFilterAPI => playdate_sound_effect_onepolefilter {
         ; // No sub-API fields
         pub(crate) newFilter: unsafe extern "C" fn() -> *mut OnePoleFilter,

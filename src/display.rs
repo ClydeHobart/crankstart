@@ -1,7 +1,6 @@
 use crate::{define_crankstart_api, pd_api::playdate_display};
 
 define_crankstart_api! {
-    #[allow(dead_code, non_snake_case)]
     pub struct DisplayAPI => playdate_display {
         ; // No sub-API fields
         pub(crate) getWidth: unsafe extern "C" fn() -> i32,

@@ -7,7 +7,6 @@ use crate::{
 };
 
 define_crankstart_api! {
-    #[allow(dead_code, non_snake_case)]
     pub struct ScoreboardsAPI => playdate_scoreboards {
         ; // No sub-API fields
         pub(crate) addScore: unsafe extern "C" fn(

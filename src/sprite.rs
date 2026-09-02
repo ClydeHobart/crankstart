@@ -8,7 +8,6 @@ use crate::{
 };
 
 define_crankstart_api! {
-    #[allow(dead_code, non_snake_case)]
     pub struct SpriteAPI => playdate_sprite {
         ; // No sub-API fields
         pub(crate) setAlwaysRedraw: unsafe extern "C" fn(flag: i32),

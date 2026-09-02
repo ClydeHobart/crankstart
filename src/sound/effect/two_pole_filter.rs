@@ -6,7 +6,6 @@ use crate::{
 };
 
 define_crankstart_api! {
-    #[allow(dead_code, non_snake_case)]
     pub struct TwoPoleFilterAPI => playdate_sound_effect_twopolefilter {
         ; // No sub-API fields
         pub(crate) newFilter: unsafe extern "C" fn() -> *mut TwoPoleFilter,

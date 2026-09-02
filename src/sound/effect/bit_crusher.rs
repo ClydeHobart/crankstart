@@ -4,7 +4,6 @@ use crate::{
 };
 
 define_crankstart_api! {
-    #[allow(dead_code, non_snake_case)]
     pub struct BitCrusherAPI => playdate_sound_effect_bitcrusher {
         ; // No sub-API fields
         pub(crate) newBitCrusher: unsafe extern "C" fn() -> *mut BitCrusher,

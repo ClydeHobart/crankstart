@@ -4,7 +4,6 @@ use crate::{
 };
 
 define_crankstart_api! {
-    #[allow(dead_code, non_snake_case)]
     pub struct SourceAPI => playdate_sound_source {
         ; // No sub-API fields
         pub(crate) setVolume: unsafe extern "C" fn(c: *mut SoundSource, lvol: f32, rvol: f32),

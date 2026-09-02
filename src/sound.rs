@@ -31,7 +31,6 @@ pub mod synth;
 pub mod track;
 
 define_crankstart_api! {
-    #[allow(dead_code, non_snake_case)]
     pub struct SoundAPI => playdate_sound {
         pub channel: ChannelAPI,
         pub controlsignal: ControlSignalAPI,

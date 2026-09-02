@@ -7,7 +7,6 @@ use crate::{
 };
 
 define_crankstart_api! {
-    #[allow(dead_code, non_snake_case)]
     pub struct ChannelAPI => playdate_sound_channel{
         ; // No sub-API fields
         pub(crate) newChannel: unsafe extern "C" fn() -> *mut SoundChannel,

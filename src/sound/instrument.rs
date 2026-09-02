@@ -4,7 +4,6 @@ use crate::{
 };
 
 define_crankstart_api! {
-    #[allow(dead_code, non_snake_case)]
     pub struct InstrumentAPI => playdate_sound_instrument {
         ; // No sub-API fields
         pub(crate) newInstrument: unsafe extern "C" fn() -> *mut PDSynthInstrument,

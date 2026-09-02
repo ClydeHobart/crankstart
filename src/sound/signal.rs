@@ -7,7 +7,6 @@ use crate::{
 };
 
 define_crankstart_api! {
-    #[allow(dead_code, non_snake_case)]
     pub struct SignalAPI => playdate_sound_signal {
         ; // No sub-API fields
         pub(crate) newSignal: unsafe extern "C" fn(

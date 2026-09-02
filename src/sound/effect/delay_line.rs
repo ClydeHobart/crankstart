@@ -4,7 +4,6 @@ use crate::{
 };
 
 define_crankstart_api! {
-    #[allow(dead_code, non_snake_case)]
     pub struct DelayLineAPI => playdate_sound_effect_delayline {
         ; // No sub-API fields
         pub(crate) newDelayLine: unsafe extern "C" fn(length: i32, stereo: i32) -> *mut DelayLine,

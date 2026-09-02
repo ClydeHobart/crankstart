@@ -179,6 +179,7 @@ macro_rules! define_crankstart_api {
         }
     } => {
         $(#[$struct_attr])*
+        #[allow(dead_code, non_snake_case)]
         $struct_pub struct $cs_api_ty {
             $(
                 $(#[$api_field_attr])*

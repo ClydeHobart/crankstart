@@ -20,7 +20,6 @@ pub mod ring_modulator;
 pub mod two_pole_filter;
 
 define_crankstart_api! {
-    #[allow(dead_code, non_snake_case)]
     pub struct EffectAPI => playdate_sound_effect {
         pub twopolefilter: TwoPoleFilterAPI,
         pub onepolefilter: OnePoleFilterAPI,

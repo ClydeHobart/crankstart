@@ -63,7 +63,6 @@ impl TryFrom<Duration> for PDDuration {
 }
 
 define_crankstart_api! {
-    #[allow(dead_code, non_snake_case)]
     pub struct SysAPI => playdate_sys {
         ; // No sub-API fields
         pub(crate) realloc: unsafe extern "C" fn(ptr: *mut c_void, size: usize) -> *mut c_void,

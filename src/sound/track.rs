@@ -4,7 +4,6 @@ use crate::{
 };
 
 define_crankstart_api! {
-    #[allow(dead_code, non_snake_case)]
     pub struct TrackAPI => playdate_sound_track {
         ; // No sub-API fields
         pub(crate) newTrack: unsafe extern "C" fn() -> *mut SequenceTrack,
