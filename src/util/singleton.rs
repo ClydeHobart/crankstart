@@ -58,9 +58,11 @@ macro_rules! impl_singleton {
             unsafe fn get_storage_mut_unchecked() -> &'static mut Option<
                 ::core::cell::RefCell<Self>
             > {
-                static mut STORAGE: Option<::core::cell::RefCell<$ty>> = None;
+                unsafe {
+                    static mut STORAGE: Option<::core::cell::RefCell<$ty>> = None;
 
-                &mut STORAGE
+                    &mut STORAGE
+                }
             }
         }
     };

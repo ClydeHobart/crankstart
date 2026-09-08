@@ -422,15 +422,22 @@ unsafe impl Sync for PlaydateAllocator {}
 #[cfg(not(any(test, doctest)))]
 unsafe impl GlobalAlloc for PlaydateAllocator {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-        (CrankstartAPI::get().system.realloc)(core::ptr::null_mut(), layout.size()) as *mut u8
+        unsafe {
+            (CrankstartAPI::get().system.realloc)(core::ptr::null_mut(), layout.size()) as *mut u8
+        }
     }
 
     unsafe fn dealloc(&self, ptr: *mut u8, _layout: Layout) {
-        (CrankstartAPI::get().system.realloc)(ptr as *mut core::ffi::c_void, 0);
+        unsafe {
+            (CrankstartAPI::get().system.realloc)(ptr as *mut core::ffi::c_void, 0);
+        }
     }
 
     unsafe fn realloc(&self, ptr: *mut u8, _layout: Layout, new_size: usize) -> *mut u8 {
-        (CrankstartAPI::get().system.realloc)(ptr as *mut core::ffi::c_void, new_size) as *mut u8
+        unsafe {
+            (CrankstartAPI::get().system.realloc)(ptr as *mut core::ffi::c_void, new_size)
+                as *mut u8
+        }
     }
 }
 
@@ -522,7 +529,7 @@ pub unsafe extern "C" fn __bzero(s: *mut u8, n: usize) {
     memset_internal(s, 0, n);
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn _sbrk() {}
 
 #[cfg(not(target_os = "windows"))]
@@ -541,27 +548,27 @@ pub extern "C" fn _lseek() {}
 #[no_mangle]
 pub extern "C" fn _read() {}
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn _fstat() {}
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn _isatty() {}
 
 #[cfg(not(target_os = "windows"))]
 #[no_mangle]
 pub extern "C" fn _exit() {}
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn _open() {}
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn _kill() {}
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn _getpid() {}
 
 #[cfg(not(any(test, doctest)))]
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn rust_eh_personality() {
     unimplemented!();
 }
@@ -572,12 +579,12 @@ extern "C" fn _Unwind_Resume() {
     unimplemented!();
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn __exidx_start() {
     unimplemented!();
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn __exidx_end() {
     unimplemented!();
 }

@@ -38,18 +38,20 @@ impl<const CAP: usize> ArrayStringTrait for ArrayString<CAP> {
 }
 
 pub const unsafe fn strlen(value: *const c_char) -> usize {
-    let mut strlen: usize = 0_usize;
+    unsafe {
+        let mut strlen: usize = 0_usize;
 
-    if !value.is_null() {
-        let mut cursor: *const c_char = value;
+        if !value.is_null() {
+            let mut cursor: *const c_char = value;
 
-        while cursor.read() != NULL_C_CHAR {
-            cursor = cursor.add(1_usize);
-            strlen += 1_usize;
+            while cursor.read() != NULL_C_CHAR {
+                cursor = cursor.add(1_usize);
+                strlen += 1_usize;
+            }
         }
-    }
 
-    strlen
+        strlen
+    }
 }
 
 #[macro_export]

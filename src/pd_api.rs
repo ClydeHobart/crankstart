@@ -60,10 +60,10 @@ pub mod ctypes {
 
 #[cfg(all(target_os = "windows", target_feature = "crt-static"))]
 #[link(name = "libcmt")]
-extern "C" {}
+unsafe extern "C" {}
 #[cfg(all(target_os = "windows", not(target_feature = "crt-static")))]
 #[link(name = "msvcrt")]
-extern "C" {}
+unsafe extern "C" {}
 
 #[cfg(all(
     not(target_os = "none"),
