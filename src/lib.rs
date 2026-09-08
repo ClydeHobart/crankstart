@@ -17,7 +17,7 @@ use {
         graphics::GraphicsAPI,
         json::JSONAPI,
         lua::LuaAPI,
-        pd_api::{ctypes::c_void, PDSystemEvent, PlaydateAPI},
+        pd_api::{PDSystemEvent, PlaydateAPI, ctypes::c_void},
         scoreboards::ScoreboardsAPI,
         sound::SoundAPI,
         sprite::SpriteAPI,
@@ -30,12 +30,6 @@ use {
         convert::TryFrom,
         mem::MaybeUninit,
     },
-};
-
-#[cfg(not(any(test, doctest)))]
-use core::{
-    alloc::{GlobalAlloc, Layout},
-    panic::PanicInfo,
 };
 
 pub mod display;
@@ -83,7 +77,7 @@ pub trait Game: Singleton {
 
     fn update(&mut self) -> Result<ShouldUpdateDisplay>;
 
-    fn handle_event(&mut self, event: PDSystemEvent, arg: u32);
+    fn handle_event(&mut self, event: PDSystemEvent, arg: u32) {}
 }
 
 pub fn game_handle_event<G: Game>(playdate: *mut PlaydateAPI, event: PDSystemEvent, arg: u32) {
@@ -139,7 +133,7 @@ macro_rules! crankstart_game {
     ($game_struct:ty) => {
         $crate::impl_singleton!($game_struct);
 
-        #[no_mangle]
+        #[unsafe(no_mangle)]
         extern "C" fn eventHandler(
             playdate: *mut $crate::pd_api::PlaydateAPI,
             event: $crate::pd_api::PDSystemEvent,
@@ -287,308 +281,3 @@ macro_rules! define_crankstart_api {
         }
     };
 }
-
-#[macro_export]
-macro_rules! str_lit {
-    ($str_lit:literal) => {
-        #[cfg(debug_assertions)]
-        {
-            $str_lit
-        }
-
-        #[cfg(not(debug_assertions))]
-        {
-            ""
-        }
-    };
-}
-
-#[macro_export]
-macro_rules! ensure {
-    ($expr:expr) => {
-        if $expr {
-            Ok(())
-        } else {
-            Err(::anyhow::Error::msg(
-                #[cfg(debug_assertions)]
-                ::core::concat!(
-                    ::core::file!(),
-                    ":",
-                    ::core::line!(),
-                    ": \"",
-                    ::core::stringify!($expr),
-                    "\" was false"
-                ),
-                #[cfg(not(debug_assertions))]
-                "",
-            ))
-        }?
-    };
-}
-
-#[macro_export]
-macro_rules! q {
-    ($expr:expr) => {
-        ($expr).map_err(|_| {
-            ::anyhow::Error::msg(
-                #[cfg(debug_assertions)]
-                ::core::concat!(
-                    ::core::file!(),
-                    ":",
-                    ::core::line!(),
-                    ": \"",
-                    ::core::stringify!($expr),
-                    "\" was an error"
-                ),
-                #[cfg(not(debug_assertions))]
-                "",
-            )
-        })?
-    };
-}
-
-#[macro_export]
-macro_rules! println {
-    ($($arg:tt)*) => {
-        $crate::sys::SysAPI::print_internal(
-            |temp_string| {
-                $crate::write0!(temp_string, $($arg)*).ok();
-            },
-            $crate::sys::SysAPI::log_to_console
-        );
-    }
-}
-
-#[macro_export]
-macro_rules! eprintln {
-    ($($arg:tt)*) => {
-        $crate::sys::SysAPI::print_internal(
-            |temp_string| {
-                $crate::write0!(temp_string, $($arg)*).ok();
-            },
-            $crate::sys::SysAPI::error
-        );
-    }
-}
-
-#[macro_export]
-macro_rules! breakpoint_nop {
-    () => {
-        #[cfg(debug_assertions)]
-        {
-            ::core::hint::black_box(());
-            ::core::intrinsics::breakpoint();
-        }
-    };
-}
-
-#[cfg(not(any(test, doctest)))]
-fn abort_with_addr(addr: usize) -> ! {
-    let p = addr as *mut i32;
-    unsafe {
-        *p = 0;
-    }
-    core::intrinsics::abort()
-}
-
-#[cfg(not(any(test, doctest)))]
-#[panic_handler]
-fn panic(#[allow(unused)] panic_info: &PanicInfo) -> ! {
-    if let Some(location) = panic_info.location() {
-        eprintln!(
-            "panic: {} @ {}:{}",
-            panic_info.message(),
-            location.file(),
-            location.line(),
-        );
-    } else {
-        eprintln!("panic");
-    }
-
-    #[cfg(target_os = "macos")]
-    unsafe {
-        core::intrinsics::breakpoint();
-    }
-
-    abort_with_addr(0xdeadbeef);
-}
-
-#[cfg(not(any(test, doctest)))]
-pub(crate) struct PlaydateAllocator;
-
-#[cfg(not(any(test, doctest)))]
-unsafe impl Sync for PlaydateAllocator {}
-
-#[cfg(not(any(test, doctest)))]
-unsafe impl GlobalAlloc for PlaydateAllocator {
-    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-        unsafe {
-            (CrankstartAPI::get().system.realloc)(core::ptr::null_mut(), layout.size()) as *mut u8
-        }
-    }
-
-    unsafe fn dealloc(&self, ptr: *mut u8, _layout: Layout) {
-        unsafe {
-            (CrankstartAPI::get().system.realloc)(ptr as *mut core::ffi::c_void, 0);
-        }
-    }
-
-    unsafe fn realloc(&self, ptr: *mut u8, _layout: Layout, new_size: usize) -> *mut u8 {
-        unsafe {
-            (CrankstartAPI::get().system.realloc)(ptr as *mut core::ffi::c_void, new_size)
-                as *mut u8
-        }
-    }
-}
-
-#[cfg(not(any(test, doctest)))]
-#[global_allocator]
-pub(crate) static mut A: PlaydateAllocator = PlaydateAllocator;
-
-// define what happens in an Out Of Memory (OOM) condition
-
-#[cfg(not(any(test, doctest)))]
-#[alloc_error_handler]
-fn alloc_error(_layout: Layout) -> ! {
-    eprintln!("Out of Memory");
-    abort_with_addr(0xDEADFA11);
-}
-
-#[cfg(target_os = "macos")]
-#[no_mangle]
-pub unsafe extern "C" fn memcpy(dest: *mut u8, src: *const u8, n: usize) -> *mut u8 {
-    let mut i = 0;
-    while i < n {
-        *dest.add(i) = *src.add(i);
-        i += 1;
-    }
-    dest
-}
-
-#[cfg(target_os = "macos")]
-#[no_mangle]
-pub unsafe extern "C" fn memmove(dest: *mut u8, src: *const u8, n: usize) -> *mut u8 {
-    if src < dest as *const u8 {
-        // copy from end
-        let mut i = n;
-        while i != 0 {
-            i -= 1;
-            *dest.add(i) = *src.add(i);
-        }
-    } else {
-        // copy from beginning
-        let mut i = 0;
-        while i < n {
-            *dest.add(i) = *src.add(i);
-            i += 1;
-        }
-    }
-    dest
-}
-
-#[cfg(target_os = "macos")]
-#[no_mangle]
-pub unsafe extern "C" fn memcmp(s1: *const u8, s2: *const u8, n: usize) -> i32 {
-    let mut i = 0;
-    while i < n {
-        let a = *s1.add(i);
-        let b = *s2.add(i);
-        if a != b {
-            return a as i32 - b as i32;
-        }
-        i += 1;
-    }
-    0
-}
-
-#[cfg(target_os = "macos")]
-#[no_mangle]
-pub unsafe extern "C" fn bcmp(s1: *const u8, s2: *const u8, n: usize) -> i32 {
-    memcmp(s1, s2, n)
-}
-
-#[cfg(target_os = "macos")]
-pub unsafe fn memset_internal(s: *mut u8, c: crankstart_sys::ctypes::c_int, n: usize) -> *mut u8 {
-    let mut i = 0;
-    while i < n {
-        *s.add(i) = c as u8;
-        i += 1;
-    }
-    s
-}
-
-#[cfg(target_os = "macos")]
-#[no_mangle]
-pub unsafe extern "C" fn memset(s: *mut u8, c: crankstart_sys::ctypes::c_int, n: usize) -> *mut u8 {
-    memset_internal(s, c, n)
-}
-
-#[cfg(target_os = "macos")]
-#[no_mangle]
-pub unsafe extern "C" fn __bzero(s: *mut u8, n: usize) {
-    memset_internal(s, 0, n);
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn _sbrk() {}
-
-#[cfg(not(target_os = "windows"))]
-#[no_mangle]
-pub extern "C" fn _write() {}
-
-#[cfg(not(target_os = "windows"))]
-#[no_mangle]
-pub extern "C" fn _close() {}
-
-#[cfg(not(target_os = "windows"))]
-#[no_mangle]
-pub extern "C" fn _lseek() {}
-
-#[cfg(not(target_os = "windows"))]
-#[no_mangle]
-pub extern "C" fn _read() {}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn _fstat() {}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn _isatty() {}
-
-#[cfg(not(target_os = "windows"))]
-#[no_mangle]
-pub extern "C" fn _exit() {}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn _open() {}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn _kill() {}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn _getpid() {}
-
-#[cfg(not(any(test, doctest)))]
-#[unsafe(no_mangle)]
-pub extern "C" fn rust_eh_personality() {
-    unimplemented!();
-}
-
-#[cfg(target_os = "macos")]
-#[no_mangle]
-extern "C" fn _Unwind_Resume() {
-    unimplemented!();
-}
-
-#[unsafe(no_mangle)]
-extern "C" fn __exidx_start() {
-    unimplemented!();
-}
-
-#[unsafe(no_mangle)]
-extern "C" fn __exidx_end() {
-    unimplemented!();
-}
-
-#[cfg(target_os = "macos")]
-#[link(name = "System")]
-extern "C" {}
