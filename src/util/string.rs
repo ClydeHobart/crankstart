@@ -1,6 +1,7 @@
-use {crate::breakpoint_nop, arrayvec::ArrayString};
+use {crate::breakpoint_nop, arrayvec::ArrayString, core::ffi::c_char};
 
-const NULL_TERMINATING_BYTE: char = 0 as char;
+const NULL_CHAR: char = 0 as char;
+const NULL_C_CHAR: c_char = NULL_CHAR as c_char;
 const TEMP_STRING_SIZE: usize = 256_usize;
 const LONG_TEMP_STRING_SIZE: usize = 1024_usize;
 
@@ -27,13 +28,28 @@ impl<const CAP: usize> ArrayStringTrait for ArrayString<CAP> {
     }
 
     fn null_terminate(&mut self) {
-        if self.try_push(NULL_TERMINATING_BYTE).is_ok() {
+        if self.try_push(NULL_CHAR).is_ok() {
             breakpoint_nop!();
         } else {
             self.pop();
-            self.push(NULL_TERMINATING_BYTE);
+            self.push(NULL_CHAR);
         }
     }
+}
+
+pub const unsafe fn strlen(value: *const c_char) -> usize {
+    let mut strlen: usize = 0_usize;
+
+    if !value.is_null() {
+        let mut cursor: *const c_char = value;
+
+        while cursor.read() != NULL_C_CHAR {
+            cursor = cursor.add(1_usize);
+            strlen += 1_usize;
+        }
+    }
+
+    strlen
 }
 
 #[macro_export]
