@@ -2,7 +2,6 @@
 #![cfg_attr(not(any(test, doctest)), feature(alloc_error_handler))]
 #![feature(core_intrinsics)]
 #![allow(internal_features)]
-#![allow(unused_variables, dead_code, unused_imports)]
 
 #[cfg(not(any(test, doctest)))]
 pub extern crate alloc;
@@ -22,14 +21,10 @@ use {
         sound::SoundAPI,
         sprite::SpriteAPI,
         sys::SysAPI,
-        util::{singleton::Singleton, string::TempString},
+        util::singleton::Singleton,
     },
     anyhow::{Error, Result},
-    core::{
-        cell::{Ref, RefCell, RefMut},
-        convert::TryFrom,
-        mem::MaybeUninit,
-    },
+    core::convert::TryFrom,
 };
 
 pub mod display;
@@ -77,7 +72,7 @@ pub trait Game: Singleton {
 
     fn update(&mut self) -> Result<ShouldUpdateDisplay>;
 
-    fn handle_event(&mut self, event: PDSystemEvent, arg: u32) {}
+    fn handle_event(&mut self, #[allow(unused)] event: PDSystemEvent, #[allow(unused)] arg: u32) {}
 }
 
 pub fn game_handle_event<G: Game>(playdate: *mut PlaydateAPI, event: PDSystemEvent, arg: u32) {
