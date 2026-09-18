@@ -1,7 +1,7 @@
 use crate::{
     define_crankstart_api,
     pd_api::{
-        ctypes::c_void, playdate_sound_sampleplayer, sndCallbackProc, AudioSample, SamplePlayer,
+        AudioSample, SamplePlayer, ctypes::c_void, playdate_sound_sampleplayer, sndCallbackProc,
     },
 };
 
@@ -40,6 +40,6 @@ define_crankstart_api! {
         ),
         pub(crate) getOffset: unsafe extern "C" fn(player: *mut SamplePlayer) -> f32,
         pub(crate) getRate: unsafe extern "C" fn(player: *mut SamplePlayer) -> f32,
-        pub(crate) setPaused: unsafe extern "C" fn(player: *mut SamplePlayer, flag: i32),
+        pub(crate) setPaused: unsafe extern "C" fn(player: *mut SamplePlayer, flag: i32);
     }
 }

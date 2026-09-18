@@ -1,6 +1,6 @@
 use crate::{
     define_crankstart_api,
-    pd_api::{ctypes::c_void, playdate_sound_source, sndCallbackProc, SoundSource},
+    pd_api::{SoundSource, ctypes::c_void, playdate_sound_source, sndCallbackProc},
 };
 
 define_crankstart_api! {
@@ -14,6 +14,6 @@ define_crankstart_api! {
             c: *mut SoundSource,
             callback: sndCallbackProc,
             userdata: *mut c_void,
-        ),
+        );
     }
 }

@@ -21,10 +21,10 @@ use {
         sound::SoundAPI,
         sprite::SpriteAPI,
         sys::SysAPI,
-        util::singleton::Singleton,
+        util::{ptr::PtrManager, singleton::Singleton},
     },
     anyhow::{Error, Result},
-    core::convert::TryFrom,
+    core::{cell::RefCell, convert::TryFrom},
 };
 
 pub mod display;
@@ -51,7 +51,8 @@ define_crankstart_api! {
         pub sound: SoundAPI,
         pub sprite: SpriteAPI,
         pub system: SysAPI;
-        // No fn fields.
+        ; // No fn fields.
+        ptr_manager: RefCell<PtrManager>,
     }
 }
 
@@ -158,13 +159,11 @@ macro_rules! define_crankstart_api {
             $(
                 $(#[$fn_field_attr:meta])*
                 $fn_pub:vis $fn_field:ident: $fn_ty:ty
-            ),* $(,)?
+            ),*;
             $(
-                ;
-
-                $(#[$data_field_attr:meta])*
-                $data_pub:vis $data_field:ident: $data_ty:ty,
-            )?
+                $(#[$state_field_attr:meta])*
+                $state_pub:vis $state_field:ident: $state_ty:ty,
+            ),* $(,)?
         }
     } => {
         $(#[$struct_attr])*
@@ -179,8 +178,8 @@ macro_rules! define_crankstart_api {
                 $fn_pub $fn_field: $fn_ty,
             )*
             $(
-                $(#[$data_field_attr])*
-                $data_pub $data_field: $data_ty,
+                $(#[$state_field_attr])*
+                $state_pub $state_field: $state_ty,
             )?
         }
 
@@ -264,13 +263,13 @@ macro_rules! define_crankstart_api {
                 )*
 
                 $(
-                    let $data_field: $data_ty = Default::default();
-                )?
+                    let $state_field: $state_ty = Default::default();
+                )*
 
                 Ok(Self {
                     $($api_field,)*
                     $($fn_field,)*
-                    $($data_field,)?
+                    $($state_field,)*
                 })
             }
         }

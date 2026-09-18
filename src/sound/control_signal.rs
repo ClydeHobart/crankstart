@@ -1,6 +1,6 @@
 use crate::{
     define_crankstart_api,
-    pd_api::{playdate_control_signal, ControlSignal},
+    pd_api::{ControlSignal, playdate_control_signal},
 };
 
 define_crankstart_api! {
@@ -17,6 +17,6 @@ define_crankstart_api! {
         ),
         pub(crate) removeEvent: unsafe extern "C" fn(control: *mut ControlSignal, step: i32),
         pub(crate) getMIDIControllerNumber:
-            unsafe extern "C" fn(control: *mut ControlSignal) -> i32,
+            unsafe extern "C" fn(control: *mut ControlSignal) -> i32;
     }
 }

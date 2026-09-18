@@ -1,7 +1,7 @@
 use crate::{
     define_crankstart_api,
     pd_api::{
-        playdate_sound_effect_twopolefilter, PDSynthSignalValue, TwoPoleFilter, TwoPoleFilterType,
+        PDSynthSignalValue, TwoPoleFilter, TwoPoleFilterType, playdate_sound_effect_twopolefilter,
     },
 };
 
@@ -22,6 +22,6 @@ define_crankstart_api! {
         pub(crate) setResonanceModulator:
             unsafe extern "C" fn(filter: *mut TwoPoleFilter, signal: *mut PDSynthSignalValue),
         pub(crate) getResonanceModulator:
-            unsafe extern "C" fn(filter: *mut TwoPoleFilter) -> *mut PDSynthSignalValue,
+            unsafe extern "C" fn(filter: *mut TwoPoleFilter) -> *mut PDSynthSignalValue;
     }
 }

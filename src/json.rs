@@ -24,6 +24,6 @@ define_crankstart_api! {
             functions: *mut json_decoder,
             jsonString: *const c_char,
             outval: *mut json_value,
-        ) -> i32,
+        ) -> i32;
     }
 }

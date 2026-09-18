@@ -1,6 +1,6 @@
 use crate::{
     define_crankstart_api,
-    pd_api::{playdate_sound_effect_delayline, DelayLine, DelayLineTap, PDSynthSignalValue},
+    pd_api::{DelayLine, DelayLineTap, PDSynthSignalValue, playdate_sound_effect_delayline},
 };
 
 define_crankstart_api! {
@@ -17,6 +17,6 @@ define_crankstart_api! {
             unsafe extern "C" fn(t: *mut DelayLineTap, mod_: *mut PDSynthSignalValue),
         pub(crate) getTapDelayModulator:
             unsafe extern "C" fn(t: *mut DelayLineTap) -> *mut PDSynthSignalValue,
-        pub(crate) setTapChannelsFlipped: unsafe extern "C" fn(t: *mut DelayLineTap, flip: i32),
+        pub(crate) setTapChannelsFlipped: unsafe extern "C" fn(t: *mut DelayLineTap, flip: i32);
     }
 }

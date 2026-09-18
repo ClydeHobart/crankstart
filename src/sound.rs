@@ -8,9 +8,9 @@ use {
     crate::{
         define_crankstart_api,
         pd_api::{
+            AudioSourceFunction, MicSource, RecordCallback, SoundChannel, SoundSource,
             ctypes::{c_char, c_void},
-            playdate_sound, AudioSourceFunction, MicSource, RecordCallback, SoundChannel,
-            SoundSource,
+            playdate_sound,
         },
     },
 };
@@ -67,6 +67,6 @@ define_crankstart_api! {
         ),
         pub(crate) setOutputsActive: unsafe extern "C" fn(headphone: i32, speaker: i32),
         pub(crate) removeSource: unsafe extern "C" fn(source: *mut SoundSource) -> i32,
-        pub(crate) getError: unsafe extern "C" fn() -> *const c_char,
+        pub(crate) getError: unsafe extern "C" fn() -> *const c_char;
     }
 }

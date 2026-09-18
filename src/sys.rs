@@ -19,8 +19,14 @@ use {
     anyhow::{Error, Result},
     arrayvec::ArrayVec,
     core::{
-        cell::RefCell, convert::TryFrom, ffi::CStr, fmt::Write, num::TryFromIntError,
-        ptr::null_mut, result::Result as CoreResult, time::Duration,
+        cell::{RefCell, RefMut},
+        convert::TryFrom,
+        ffi::CStr,
+        fmt::Write,
+        num::TryFromIntError,
+        ptr::null_mut,
+        result::Result as CoreResult,
+        time::Duration as CoreDuration,
     },
     euclid::default::Vector3D,
 };
@@ -35,21 +41,21 @@ pub struct ButtonState {
 }
 
 #[derive(Default, Clone, Copy)]
-pub struct PDDuration {
+pub struct Duration {
     pub seconds: u32,
     pub milliseconds: u32,
 }
 
-impl From<PDDuration> for Duration {
-    fn from(value: PDDuration) -> Self {
+impl From<Duration> for CoreDuration {
+    fn from(value: Duration) -> Self {
         Self::from_secs(value.seconds as u64) + Self::from_millis(value.milliseconds as u64)
     }
 }
 
-impl TryFrom<Duration> for PDDuration {
+impl TryFrom<CoreDuration> for Duration {
     type Error = TryFromIntError;
 
-    fn try_from(value: Duration) -> CoreResult<Self, Self::Error> {
+    fn try_from(value: CoreDuration) -> CoreResult<Self, Self::Error> {
         let seconds: u32 = u32::try_from(value.as_secs())?;
         let milliseconds: u32 = value.subsec_millis();
 
@@ -150,7 +156,7 @@ define_crankstart_api! {
             str_: *const c_char,
             format: *const c_char,
             ...
-        ) -> i32,
+        ) -> i32;
     }
 }
 
@@ -160,11 +166,15 @@ impl SysAPI {
         write_closure: F,
         log_fn: G,
     ) {
-        let mut temp_string: TempString = TempString::new();
+        // Don't use `CrankstartAPI::get` in here. If the singleton hasn't been setup yet, we'll get
+        // a double-tap on startup that's difficult to debug.
+        if let Some(crankstart_api) = CrankstartAPI::try_get() {
+            let mut temp_string: TempString = TempString::new();
 
-        write_closure(&mut temp_string);
+            write_closure(&mut temp_string);
 
-        log_fn(&CrankstartAPI::get().system, &temp_string.as_str());
+            log_fn(&crankstart_api.system, &temp_string.as_str());
+        }
     }
 
     pub fn log_to_console(&self, string: &str) {
@@ -191,12 +201,12 @@ impl SysAPI {
         unsafe { (self.getCurrentTimeMilliseconds)() }
     }
 
-    pub fn get_duration_since_epoch(&self) -> PDDuration {
+    pub fn get_duration_since_epoch(&self) -> Duration {
         let mut milliseconds: u32 = 0_u32;
 
         let seconds: u32 = unsafe { (self.getSecondsSinceEpoch)(&mut milliseconds) };
 
-        PDDuration {
+        Duration {
             seconds,
             milliseconds,
         }
@@ -209,8 +219,13 @@ impl SysAPI {
     }
 
     pub(crate) fn set_update_callback<G: Game>(&self, callback_function: PDCallbackFunction) {
+        let user_data: *mut c_void = G::try_get_mut().map_or(null_mut(), |mut game: RefMut<G>| {
+            (&mut (*game)) as *mut G as *mut c_void
+        });
+
+        // This is admittedly not guaranteed to be memory safe, but this is how the C API is set up.
         unsafe {
-            (self.setUpdateCallback)(callback_function, null_mut());
+            (self.setUpdateCallback)(callback_function, user_data);
         }
     }
 
@@ -460,7 +475,7 @@ impl SysAPI {
         unsafe { (self.shouldDisplay24HourTime)() != 0_i32 }
     }
 
-    pub fn convert_duration_to_date_time(&self, duration: PDDuration) -> PDDateTime {
+    pub fn convert_duration_to_date_time(&self, duration: Duration) -> PDDateTime {
         let mut date_time: PDDateTime = PDDateTime::default();
 
         unsafe {
@@ -470,13 +485,13 @@ impl SysAPI {
         date_time
     }
 
-    pub fn convert_date_time_to_duration(&self, date_time: PDDateTime) -> PDDuration {
+    pub fn convert_date_time_to_duration(&self, date_time: PDDateTime) -> Duration {
         let mut date_time: PDDateTime = date_time;
 
         let seconds: u32 = unsafe { (self.convertDateTimeToEpoch)(&mut date_time) };
         let milliseconds: u32 = 0_u32;
 
-        PDDuration {
+        Duration {
             seconds,
             milliseconds,
         }

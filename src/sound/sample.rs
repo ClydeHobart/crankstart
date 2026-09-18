@@ -1,6 +1,6 @@
 use crate::{
     define_crankstart_api,
-    pd_api::{ctypes::c_char, playdate_sound_sample, AudioSample, SoundFormat},
+    pd_api::{AudioSample, SoundFormat, ctypes::c_char, playdate_sound_sample},
 };
 
 define_crankstart_api! {
@@ -28,6 +28,6 @@ define_crankstart_api! {
         ),
         pub(crate) freeSample: unsafe extern "C" fn(sample: *mut AudioSample),
         pub(crate) getLength: unsafe extern "C" fn(sample: *mut AudioSample) -> f32,
-        pub(crate) decompress: unsafe extern "C" fn(sample: *mut AudioSample) -> i32,
+        pub(crate) decompress: unsafe extern "C" fn(sample: *mut AudioSample) -> i32;
     }
 }

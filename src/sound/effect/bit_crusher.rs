@@ -1,6 +1,6 @@
 use crate::{
     define_crankstart_api,
-    pd_api::{playdate_sound_effect_bitcrusher, BitCrusher, PDSynthSignalValue},
+    pd_api::{BitCrusher, PDSynthSignalValue, playdate_sound_effect_bitcrusher},
 };
 
 define_crankstart_api! {
@@ -18,6 +18,6 @@ define_crankstart_api! {
         pub(crate) setUndersampleModulator:
             unsafe extern "C" fn(filter: *mut BitCrusher, signal: *mut PDSynthSignalValue),
         pub(crate) getUndersampleModulator:
-            unsafe extern "C" fn(filter: *mut BitCrusher) -> *mut PDSynthSignalValue,
+            unsafe extern "C" fn(filter: *mut BitCrusher) -> *mut PDSynthSignalValue;
     }
 }

@@ -1,6 +1,6 @@
 use crate::{
     define_crankstart_api,
-    pd_api::{playdate_sound_effect_ringmodulator, PDSynthSignalValue, RingModulator},
+    pd_api::{PDSynthSignalValue, RingModulator, playdate_sound_effect_ringmodulator},
 };
 
 define_crankstart_api! {
@@ -12,6 +12,6 @@ define_crankstart_api! {
         pub(crate) setFrequencyModulator:
             unsafe extern "C" fn(filter: *mut RingModulator, signal: *mut PDSynthSignalValue),
         pub(crate) getFrequencyModulator:
-            unsafe extern "C" fn(filter: *mut RingModulator) -> *mut PDSynthSignalValue,
+            unsafe extern "C" fn(filter: *mut RingModulator) -> *mut PDSynthSignalValue;
     }
 }

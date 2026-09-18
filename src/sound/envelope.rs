@@ -1,6 +1,6 @@
 use crate::{
     define_crankstart_api,
-    pd_api::{playdate_sound_envelope, MIDINote, PDSynthEnvelope},
+    pd_api::{MIDINote, PDSynthEnvelope, playdate_sound_envelope},
 };
 
 define_crankstart_api! {
@@ -28,6 +28,6 @@ define_crankstart_api! {
             scaling: f32,
             start: MIDINote,
             end: MIDINote,
-        ),
+        );
     }
 }

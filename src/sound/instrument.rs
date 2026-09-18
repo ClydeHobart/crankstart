@@ -1,6 +1,6 @@
 use crate::{
     define_crankstart_api,
-    pd_api::{playdate_sound_instrument, MIDINote, PDSynth, PDSynthInstrument},
+    pd_api::{MIDINote, PDSynth, PDSynthInstrument, playdate_sound_instrument},
 };
 
 define_crankstart_api! {
@@ -40,6 +40,6 @@ define_crankstart_api! {
             unsafe extern "C" fn(inst: *mut PDSynthInstrument, left: f32, right: f32),
         pub(crate) getVolume:
             unsafe extern "C" fn(inst: *mut PDSynthInstrument, left: *mut f32, right: *mut f32),
-        pub(crate) activeVoiceCount: unsafe extern "C" fn(inst: *mut PDSynthInstrument) -> i32,
+        pub(crate) activeVoiceCount: unsafe extern "C" fn(inst: *mut PDSynthInstrument) -> i32;
     }
 }

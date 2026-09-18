@@ -1,8 +1,9 @@
 use crate::{
     define_crankstart_api,
     pd_api::{
+        FilePlayer,
         ctypes::{c_char, c_void},
-        playdate_sound_fileplayer, sndCallbackProc, FilePlayer,
+        playdate_sound_fileplayer, sndCallbackProc,
     },
 };
 
@@ -57,6 +58,6 @@ define_crankstart_api! {
             ) -> i32>,
             userdata: *mut c_void,
             bufferLen: f32,
-        ),
+        );
     }
 }

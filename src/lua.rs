@@ -1,8 +1,9 @@
 use crate::{
     define_crankstart_api,
     pd_api::{
+        LCDBitmap, LCDSprite, LuaType, LuaUDObject,
         ctypes::{c_char, c_void},
-        lua_CFunction, lua_reg, lua_val, playdate_lua, LCDBitmap, LCDSprite, LuaType, LuaUDObject,
+        lua_CFunction, lua_reg, lua_val, playdate_lua,
     },
 };
 
@@ -63,6 +64,6 @@ define_crankstart_api! {
             name: *const c_char,
             nargs: i32,
             outerr: *mut *const c_char,
-        ) -> i32,
+        ) -> i32;
     }
 }

@@ -1,8 +1,9 @@
 use crate::{
     define_crankstart_api,
     pd_api::{
+        FileOptions, FileStat, SDFile,
         ctypes::{c_char, c_void},
-        playdate_file, FileOptions, FileStat, SDFile,
+        playdate_file,
     },
 };
 
@@ -45,6 +46,6 @@ define_crankstart_api! {
             file: *mut SDFile,
             pos: i32,
             whence: i32,
-        ) -> i32,
+        ) -> i32;
     }
 }

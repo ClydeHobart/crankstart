@@ -1,8 +1,8 @@
 use crate::{
     define_crankstart_api,
     pd_api::{
-        ctypes::c_char, playdate_scoreboards, AddScoreCallback, BoardsListCallback, PDBoardsList,
-        PDScore, PDScoresList, PersonalBestCallback, ScoresCallback,
+        AddScoreCallback, BoardsListCallback, PDBoardsList, PDScore, PDScoresList,
+        PersonalBestCallback, ScoresCallback, ctypes::c_char, playdate_scoreboards,
     },
 };
 
@@ -25,6 +25,6 @@ define_crankstart_api! {
             boardId: *const c_char,
             callback: ScoresCallback,
         ) -> i32,
-        pub(crate) freeScoresList: unsafe extern "C" fn(scoresList: *mut PDScoresList),
+        pub(crate) freeScoresList: unsafe extern "C" fn(scoresList: *mut PDScoresList);
     }
 }

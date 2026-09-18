@@ -10,6 +10,6 @@ define_crankstart_api! {
         pub(crate) setScale: unsafe extern "C" fn(s: u32),
         pub(crate) setMosaic: unsafe extern "C" fn(x: u32, y: u32),
         pub(crate) setFlipped: unsafe extern "C" fn(x: i32, y: i32),
-        pub(crate) setOffset: unsafe extern "C" fn(x: i32, y: i32),
+        pub(crate) setOffset: unsafe extern "C" fn(x: i32, y: i32);
     }
 }

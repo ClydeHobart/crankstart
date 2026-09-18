@@ -1,6 +1,6 @@
 use crate::{
     define_crankstart_api,
-    pd_api::{playdate_sound_effect_overdrive, Overdrive, PDSynthSignalValue},
+    pd_api::{Overdrive, PDSynthSignalValue, playdate_sound_effect_overdrive},
 };
 
 define_crankstart_api! {
@@ -18,6 +18,6 @@ define_crankstart_api! {
         pub(crate) setOffsetModulator:
             unsafe extern "C" fn(o: *mut Overdrive, mod_: *mut PDSynthSignalValue),
         pub(crate) getOffsetModulator:
-            unsafe extern "C" fn(o: *mut Overdrive) -> *mut PDSynthSignalValue,
+            unsafe extern "C" fn(o: *mut Overdrive) -> *mut PDSynthSignalValue;
     }
 }

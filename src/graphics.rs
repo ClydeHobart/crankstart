@@ -3,10 +3,11 @@ use {
     crate::{
         define_crankstart_api,
         pd_api::{
+            LCDBitmap, LCDBitmapDrawMode, LCDBitmapFlip, LCDBitmapTable, LCDColor, LCDFont,
+            LCDFontData, LCDFontGlyph, LCDFontPage, LCDLineCapStyle, LCDPolygonFillRule, LCDRect,
+            LCDSolidColor, PDStringEncoding,
             ctypes::{c_char, c_void},
-            playdate_graphics, LCDBitmap, LCDBitmapDrawMode, LCDBitmapFlip, LCDBitmapTable,
-            LCDColor, LCDFont, LCDFontData, LCDFontGlyph, LCDFontPage, LCDLineCapStyle,
-            LCDPolygonFillRule, LCDRect, LCDSolidColor, PDStringEncoding,
+            playdate_graphics,
         },
     },
 };
@@ -244,6 +245,6 @@ define_crankstart_api! {
             table: *mut LCDBitmapTable,
             count: *mut i32,
             width: *mut i32,
-        ),
+        );
     }
 }

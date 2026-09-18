@@ -1,6 +1,6 @@
 use crate::{
     define_crankstart_api,
-    pd_api::{playdate_sound_effect_onepolefilter, OnePoleFilter, PDSynthSignalValue},
+    pd_api::{OnePoleFilter, PDSynthSignalValue, playdate_sound_effect_onepolefilter},
 };
 
 define_crankstart_api! {
@@ -12,6 +12,6 @@ define_crankstart_api! {
         pub(crate) setParameterModulator:
             unsafe extern "C" fn(filter: *mut OnePoleFilter, signal: *mut PDSynthSignalValue),
         pub(crate) getParameterModulator:
-            unsafe extern "C" fn(filter: *mut OnePoleFilter) -> *mut PDSynthSignalValue,
+            unsafe extern "C" fn(filter: *mut OnePoleFilter) -> *mut PDSynthSignalValue;
     }
 }

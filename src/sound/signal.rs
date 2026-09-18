@@ -1,8 +1,8 @@
 use crate::{
     define_crankstart_api,
     pd_api::{
-        ctypes::c_void, playdate_sound_signal, signalDeallocFunc, signalNoteOffFunc,
-        signalNoteOnFunc, signalStepFunc, PDSynthSignal,
+        PDSynthSignal, ctypes::c_void, playdate_sound_signal, signalDeallocFunc, signalNoteOffFunc,
+        signalNoteOnFunc, signalStepFunc,
     },
 };
 
@@ -19,6 +19,6 @@ define_crankstart_api! {
         pub(crate) freeSignal: unsafe extern "C" fn(signal: *mut PDSynthSignal),
         pub(crate) getValue: unsafe extern "C" fn(signal: *mut PDSynthSignal) -> f32,
         pub(crate) setValueScale: unsafe extern "C" fn(signal: *mut PDSynthSignal, scale: f32),
-        pub(crate) setValueOffset: unsafe extern "C" fn(signal: *mut PDSynthSignal, offset: f32),
+        pub(crate) setValueOffset: unsafe extern "C" fn(signal: *mut PDSynthSignal, offset: f32);
     }
 }

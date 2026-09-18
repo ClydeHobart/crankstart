@@ -53,6 +53,7 @@ lto = true
 anyhow = { version = "1.0.31", default-features = false }
 arrayvec = { version = "0.7.4", default-features = false }
 euclid = { version = "0.22.9", default-features = false, features = [ "libm" ] }
+fnv = { version = "1.0.7", default-features = false }
 hashbrown = "0.14.0"
 static_assertions = { version = "1.1" }
 

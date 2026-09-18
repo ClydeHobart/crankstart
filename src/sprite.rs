@@ -1,9 +1,9 @@
 use crate::{
     define_crankstart_api,
     pd_api::{
-        ctypes::c_void, playdate_sprite, LCDBitmap, LCDBitmapDrawMode, LCDBitmapFlip, LCDRect,
-        LCDSprite, LCDSpriteCollisionFilterProc, LCDSpriteDrawFunction, LCDSpriteUpdateFunction,
-        PDRect, SpriteCollisionInfo, SpriteQueryInfo,
+        LCDBitmap, LCDBitmapDrawMode, LCDBitmapFlip, LCDRect, LCDSprite,
+        LCDSpriteCollisionFilterProc, LCDSpriteDrawFunction, LCDSpriteUpdateFunction, PDRect,
+        SpriteCollisionInfo, SpriteQueryInfo, ctypes::c_void, playdate_sprite,
     },
 };
 
@@ -117,6 +117,6 @@ define_crankstart_api! {
         pub(crate) setStencilImage:
             unsafe extern "C" fn(sprite: *mut LCDSprite, stencil: *mut LCDBitmap, tile: i32),
         pub(crate) setCenter: unsafe extern "C" fn(s: *mut LCDSprite, x: f32, y: f32),
-        pub(crate) getCenter: unsafe extern "C" fn(s: *mut LCDSprite, x: *mut f32, y: *mut f32),
+        pub(crate) getCenter: unsafe extern "C" fn(s: *mut LCDSprite, x: *mut f32, y: *mut f32);
     }
 }

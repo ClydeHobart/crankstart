@@ -7,7 +7,7 @@ use {
     crate::{
         define_crankstart_api,
         pd_api::{
-            ctypes::c_void, effectProc, playdate_sound_effect, PDSynthSignalValue, SoundEffect,
+            PDSynthSignalValue, SoundEffect, ctypes::c_void, effectProc, playdate_sound_effect,
         },
     },
 };
@@ -37,6 +37,6 @@ define_crankstart_api! {
             unsafe extern "C" fn(effect: *mut SoundEffect) -> *mut PDSynthSignalValue,
         pub(crate) setUserdata:
             unsafe extern "C" fn(effect: *mut SoundEffect, userdata: *mut c_void),
-        pub(crate) getUserdata: unsafe extern "C" fn(effect: *mut SoundEffect) -> *mut c_void,
+        pub(crate) getUserdata: unsafe extern "C" fn(effect: *mut SoundEffect) -> *mut c_void;
     }
 }

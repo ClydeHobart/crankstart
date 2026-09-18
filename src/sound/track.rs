@@ -1,6 +1,6 @@
 use crate::{
     define_crankstart_api,
-    pd_api::{playdate_sound_track, ControlSignal, MIDINote, PDSynthInstrument, SequenceTrack},
+    pd_api::{ControlSignal, MIDINote, PDSynthInstrument, SequenceTrack, playdate_sound_track},
 };
 
 define_crankstart_api! {
@@ -44,6 +44,6 @@ define_crankstart_api! {
             track: *mut SequenceTrack,
             controller: i32,
             create: i32,
-        ) -> *mut ControlSignal,
+        ) -> *mut ControlSignal;
     }
 }

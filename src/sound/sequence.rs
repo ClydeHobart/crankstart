@@ -1,8 +1,9 @@
 use crate::{
     define_crankstart_api,
     pd_api::{
+        SequenceFinishedCallback, SequenceTrack, SoundSequence,
         ctypes::{c_char, c_void},
-        playdate_sound_sequence, SequenceFinishedCallback, SequenceTrack, SoundSequence,
+        playdate_sound_sequence,
     },
 };
 
@@ -51,6 +52,6 @@ define_crankstart_api! {
             timeOffset: i32,
             playNotes: i32,
         ),
-        pub(crate) getTempo: unsafe extern "C" fn(seq: *mut SoundSequence) -> f32,
+        pub(crate) getTempo: unsafe extern "C" fn(seq: *mut SoundSequence) -> f32;
     }
 }

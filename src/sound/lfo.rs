@@ -1,6 +1,6 @@
 use crate::{
     define_crankstart_api,
-    pd_api::{ctypes::c_void, playdate_sound_lfo, LFOType, PDSynthLFO},
+    pd_api::{LFOType, PDSynthLFO, ctypes::c_void, playdate_sound_lfo},
 };
 
 define_crankstart_api! {
@@ -27,6 +27,6 @@ define_crankstart_api! {
         pub(crate) setRetrigger: unsafe extern "C" fn(lfo: *mut PDSynthLFO, flag: i32),
         pub(crate) getValue: unsafe extern "C" fn(lfo: *mut PDSynthLFO) -> f32,
         pub(crate) setGlobal: unsafe extern "C" fn(lfo: *mut PDSynthLFO, global: i32),
-        pub(crate) setStartPhase: unsafe extern "C" fn(lfo: *mut PDSynthLFO, phase: f32),
+        pub(crate) setStartPhase: unsafe extern "C" fn(lfo: *mut PDSynthLFO, phase: f32);
     }
 }

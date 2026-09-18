@@ -1,8 +1,8 @@
 use crate::{
     define_crankstart_api,
     pd_api::{
-        ctypes::c_void, playdate_sound_channel, AudioSourceFunction, PDSynthSignalValue,
-        SoundChannel, SoundEffect, SoundSource,
+        AudioSourceFunction, PDSynthSignalValue, SoundChannel, SoundEffect, SoundSource,
+        ctypes::c_void, playdate_sound_channel,
     },
 };
 
@@ -39,6 +39,6 @@ define_crankstart_api! {
         pub(crate) getDryLevelSignal:
             unsafe extern "C" fn(channel: *mut SoundChannel) -> *mut PDSynthSignalValue,
         pub(crate) getWetLevelSignal:
-            unsafe extern "C" fn(channel: *mut SoundChannel) -> *mut PDSynthSignalValue,
+            unsafe extern "C" fn(channel: *mut SoundChannel) -> *mut PDSynthSignalValue;
     }
 }

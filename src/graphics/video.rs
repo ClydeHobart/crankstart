@@ -1,6 +1,6 @@
 use crate::{
     define_crankstart_api,
-    pd_api::{ctypes::c_char, playdate_video, LCDBitmap, LCDVideoPlayer},
+    pd_api::{LCDBitmap, LCDVideoPlayer, ctypes::c_char, playdate_video},
 };
 
 define_crankstart_api! {
@@ -22,6 +22,6 @@ define_crankstart_api! {
             outFrameCount: *mut i32,
             outCurrentFrame: *mut i32,
         ),
-        pub(crate) getContext: unsafe extern "C" fn(p: *mut LCDVideoPlayer) -> *mut LCDBitmap,
+        pub(crate) getContext: unsafe extern "C" fn(p: *mut LCDVideoPlayer) -> *mut LCDBitmap;
     }
 }

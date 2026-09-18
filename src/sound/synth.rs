@@ -1,9 +1,9 @@
 use crate::{
     define_crankstart_api,
     pd_api::{
+        AudioSample, MIDINote, PDSynth, PDSynthEnvelope, PDSynthSignalValue, SoundWaveform,
         ctypes::c_void, playdate_sound_synth, synthCopyUserdata, synthDeallocFunc, synthNoteOnFunc,
-        synthReleaseFunc, synthRenderFunc, synthSetParameterFunc, AudioSample, MIDINote, PDSynth,
-        PDSynthEnvelope, PDSynthSignalValue, SoundWaveform,
+        synthReleaseFunc, synthRenderFunc, synthSetParameterFunc,
     },
 };
 
@@ -91,6 +91,6 @@ define_crankstart_api! {
             copyUserdata: synthCopyUserdata,
             userdata: *mut c_void,
         ),
-        pub(crate) copy: unsafe extern "C" fn(synth: *mut PDSynth) -> *mut PDSynth,
+        pub(crate) copy: unsafe extern "C" fn(synth: *mut PDSynth) -> *mut PDSynth;
     }
 }
