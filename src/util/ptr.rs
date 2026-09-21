@@ -1,102 +1,139 @@
 use {
-    crate::{
-        CrankstartAPI,
-        alloc::{collections::VecDeque, rc::Rc},
-        util::singleton::Singleton,
-    },
-    anyhow::Result,
+    crate::{CrankstartAPI, System, alloc::rc::Rc, util::singleton::Singleton},
     core::{
         any::Any,
+        borrow::Borrow,
         cell::{Ref, RefCell, RefMut},
         cmp::{Eq, PartialEq},
         hash::{Hash, Hasher},
+        mem::size_of,
         ptr::NonNull,
     },
     fnv::FnvBuildHasher,
     hashbrown::HashSet,
 };
 
-pub(crate) trait PtrStateTrait
+pub(crate) trait PtrTrait
 where
-    Self: 'static,
+    Self: From<UntypedPtr> + 'static,
 {
     type PDType;
+    type State;
 
-    fn remove_pd_ptr_static(pd_ptr: NonNull<Self::PDType>);
+    fn new(pd_ptr: NonNull<Self::PDType>, state: Self::State) -> Self {
+        let ptr: Self = Self::from(UntypedPtr::new::<Self>(pd_ptr, state));
+
+        assert!(size_of::<Self>() == size_of::<UntypedPtr>());
+        assert!(
+            (&ptr) as *const Self as *const u8
+                == ptr.get_untyped_ptr() as *const UntypedPtr as *const u8
+        );
+
+        ptr
+    }
+
+    fn get_untyped_ptr(&self) -> &UntypedPtr;
+
+    fn get_untyped_pd_ptr(&self) -> &NonNull<u8> {
+        self.get_untyped_ptr().0.get_untyped_pd_ptr()
+    }
+
+    fn get_pd_ptr(&self) -> NonNull<Self::PDType> {
+        self.get_untyped_pd_ptr().cast()
+    }
+
+    fn get_ptr_inner(&self) -> &PtrInner<Self> {
+        // `self` should have been constructed via `new` above.
+        self.get_untyped_ptr().try_get_ptr_inner().unwrap()
+    }
+
+    fn try_borrow_state<'s>(&'s self) -> Option<Ref<'s, Self::State>> {
+        self.get_untyped_ptr().try_borrow_state::<Self>()
+    }
+
+    fn try_borrow_state_mut<'s>(&'s self) -> Option<RefMut<'s, Self::State>> {
+        self.get_untyped_ptr().try_borrow_state_mut::<Self>()
+    }
+
+    fn remove_pd_ptr(pd_ptr: NonNull<Self::PDType>, state: &Self::State);
 }
 
-pub(crate) trait PtrInnerTrait
+pub trait PtrInnerTrait
 where
     Self: Any,
 {
-    fn get_pd_ptr(&self) -> NonNull<()>;
+    fn get_untyped_pd_ptr(&self) -> &NonNull<u8>;
 
     fn remove_pd_ptr(&self);
 }
 
-pub(crate) struct Ptr<S: PtrStateTrait> {
-    pd_ptr: NonNull<S::PDType>,
-    state: RefCell<S>,
+pub(crate) struct PtrInner<P: PtrTrait> {
+    pd_ptr: NonNull<u8>,
+    state: RefCell<P::State>,
 }
 
-impl<S: PtrStateTrait> Ptr<S> {
-    fn try_borrow<'s>(&'s self) -> Option<Ref<'s, S>> {
+impl<P: PtrTrait> PtrInner<P> {
+    fn get_pd_ptr(&self) -> NonNull<P::PDType> {
+        self.pd_ptr.cast()
+    }
+
+    fn try_borrow_state<'s>(&'s self) -> Option<Ref<'s, P::State>> {
         self.state.try_borrow().ok()
     }
 
-    fn try_borrow_mut<'s>(&'s self) -> Option<RefMut<'s, S>> {
+    fn try_borrow_state_mut<'s>(&'s self) -> Option<RefMut<'s, P::State>> {
         self.state.try_borrow_mut().ok()
     }
 }
 
-impl<S: PtrStateTrait> PtrInnerTrait for Ptr<S> {
-    fn get_pd_ptr(&self) -> NonNull<()> {
-        self.pd_ptr.cast()
+impl<P: PtrTrait> PtrInnerTrait for PtrInner<P> {
+    fn get_untyped_pd_ptr(&self) -> &NonNull<u8> {
+        &self.pd_ptr
     }
 
     fn remove_pd_ptr(&self) {
-        S::remove_pd_ptr_static(self.pd_ptr);
+        P::remove_pd_ptr(self.get_pd_ptr(), &*self.state.borrow());
     }
 }
 
+#[derive(Clone)]
 pub(crate) struct UntypedPtr(Rc<dyn PtrInnerTrait>);
 
 impl UntypedPtr {
-    pub(crate) fn try_new<S: PtrStateTrait>(pd_ptr: NonNull<S::PDType>, state: S) -> Result<Self> {
-        let ptr: Self = Self(Rc::new(Ptr {
-            pd_ptr,
-            state: RefCell::new(state),
-        }));
+    pub(crate) fn new<P: PtrTrait>(pd_ptr: NonNull<P::PDType>, state: P::State) -> Self {
+        let pd_ptr: NonNull<u8> = pd_ptr.cast();
+        let state: RefCell<P::State> = RefCell::new(state);
+        let ptr: Self = Self(Rc::new(PtrInner::<P> { pd_ptr, state }));
 
-        // let
+        PtrManager::handle_new_ptr(&ptr);
 
-        // ptr
-
-        todo!()
+        ptr
     }
 
-    pub(crate) fn is_state<S: PtrStateTrait>(&self) -> bool {
-        ((&*self.0) as &dyn Any).is::<Ptr<S>>()
-    }
-
-    pub(crate) fn try_get<S: PtrStateTrait>(&self) -> Option<&Ptr<S>> {
+    fn try_get_ptr_inner<P: PtrTrait>(&self) -> Option<&PtrInner<P>> {
         ((&*self.0) as &dyn Any).downcast_ref()
     }
 
-    pub(crate) fn try_borrow<'p, S: PtrStateTrait>(&'p self) -> Option<Ref<'p, S>> {
-        self.try_get::<S>().and_then(Ptr::try_borrow)
+    fn try_borrow_state<'s, P: PtrTrait>(&'s self) -> Option<Ref<'s, P::State>> {
+        self.try_get_ptr_inner::<P>()
+            .and_then(PtrInner::try_borrow_state)
     }
 
-    pub(crate) fn try_borrow_mut<'p, S: PtrStateTrait>(&'p mut self) -> Option<RefMut<'p, S>> {
-        self.try_get::<S>().and_then(Ptr::try_borrow_mut)
+    fn try_borrow_state_mut<'s, P: PtrTrait>(&'s self) -> Option<RefMut<'s, P::State>> {
+        self.try_get_ptr_inner::<P>()
+            .and_then(PtrInner::try_borrow_state_mut)
+    }
+}
+
+impl Borrow<NonNull<u8>> for UntypedPtr {
+    fn borrow(&self) -> &NonNull<u8> {
+        self.0.get_untyped_pd_ptr()
     }
 }
 
 impl Drop for UntypedPtr {
     fn drop(&mut self) {
-        if Rc::strong_count(&self.0) == 1_usize {
-            self.0.remove_pd_ptr();
-        }
+        PtrManager::handle_dropped_ptr(self);
     }
 }
 
@@ -104,27 +141,61 @@ impl Eq for UntypedPtr {}
 
 impl Hash for UntypedPtr {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.0.get_pd_ptr().hash(state);
+        <UntypedPtr as Borrow<NonNull<u8>>>::borrow(self).hash(state);
     }
 }
 
 impl PartialEq for UntypedPtr {
     fn eq(&self, other: &Self) -> bool {
-        self.0.get_pd_ptr() == other.0.get_pd_ptr()
+        <UntypedPtr as Borrow<NonNull<u8>>>::borrow(self)
+            == <UntypedPtr as Borrow<NonNull<u8>>>::borrow(other)
     }
 }
-
-type UntypedPtrSet = HashSet<UntypedPtr, FnvBuildHasher>;
 
 #[derive(Default)]
-pub(crate) struct PtrManager {
-    live_ptrs: UntypedPtrSet,
-    ptrs_to_remove: UntypedPtrSet,
-}
+pub(crate) struct PtrManager(HashSet<UntypedPtr, FnvBuildHasher>);
 
 impl PtrManager {
-    pub(crate) fn try_remove_ptr(&mut self, ptr: UntypedPtr) -> Result<(), usize> {
-        // self.0.contains(&ptr)
-        todo!()
+    pub fn try_get_ptr<P: PtrTrait>(&self, ptr_inner: &PtrInner<P>) -> Option<P> {
+        self.0.get(&ptr_inner.pd_ptr).cloned().map(P::from)
     }
+
+    fn is_tracked(&self, ptr: &UntypedPtr) -> bool {
+        self.0.contains(ptr)
+    }
+
+    fn handle_new_ptr(ptr: &UntypedPtr) {
+        let crankstart_api: Ref<CrankstartAPI> = CrankstartAPI::get();
+
+        let mut ptr_manager: RefMut<Self> = crankstart_api.ptr_manager.borrow_mut();
+
+        // Calling `0.insert` for a key that's already present wouldn't put things in a bad state,
+        // but cloning does unnecessary bookkeeping in that case.
+        if !ptr_manager.is_tracked(ptr) {
+            ptr_manager.0.insert(ptr.clone());
+        }
+    }
+
+    fn handle_dropped_ptr(ptr: &UntypedPtr) {
+        // If there are two strong pointers to the same object...
+        (Rc::strong_count(&ptr.0) == 2_usize).then(|| {
+            let crankstart_api: Ref<CrankstartAPI> = CrankstartAPI::get();
+
+            let mut ptr_manager: RefMut<Self> = crankstart_api.ptr_manager.borrow_mut();
+
+            // and one of which is a copy in the tracked set (ptr could be that copy at this point),
+            // then one copy is in the lieve set and the other is one of the user's. The API
+            // restricts a pointer from being removed from the tracked set before the last user copy
+            // drops.
+            ptr_manager.is_tracked(ptr).then(|| ptr_manager.0.take(ptr))
+        });
+
+        if Rc::strong_count(&ptr.0) == 1_usize {
+            ptr.0.remove_pd_ptr();
+        }
+    }
+}
+
+impl System for PtrManager {
+    fn update() {}
 }

@@ -1,3 +1,4 @@
+pub mod callback;
 pub mod euclid;
 pub mod ffi;
 pub mod macros;

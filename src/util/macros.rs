@@ -1,6 +1,6 @@
 #[macro_export]
 macro_rules! str_lit {
-    ($str_lit:literal) => {
+    ($str_lit:literal) => {{
         #[cfg(debug_assertions)]
         {
             $str_lit
@@ -10,7 +10,7 @@ macro_rules! str_lit {
         {
             ""
         }
-    };
+    }};
 }
 
 #[macro_export]

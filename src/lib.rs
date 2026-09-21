@@ -104,6 +104,8 @@ fn game_init<G: Game>(playdate_api: *mut PlaydateAPI) -> Result<()> {
 }
 
 extern "C" fn game_update<G: Game>(user_data: *mut c_void) -> i32 {
+    CrankstartAPI::update();
+
     game_update_internal::<G>(user_data).map_or_else(
         |error| {
             eprintln!("game_update_internal failed: {error:?}");
@@ -142,7 +144,20 @@ macro_rules! crankstart_game {
     };
 }
 
-trait APITrait {
+trait System {
+    fn update() {}
+}
+
+impl<T: System> System for RefCell<T> {
+    fn update() {
+        T::update();
+    }
+}
+
+trait APITrait
+where
+    Self: System,
+{
     const SUB_API_COUNT: usize;
     const FN_COUNT: usize;
 }
@@ -181,6 +196,17 @@ macro_rules! define_crankstart_api {
                 $(#[$state_field_attr])*
                 $state_pub $state_field: $state_ty,
             )?
+        }
+
+        impl $crate::System for $cs_api_ty {
+            fn update() {
+                $(
+                    <$cs_sub_api_ty as $crate::System>::update();
+                )*
+                $(
+                    <$state_ty as $crate::System>::update();
+                )*
+            }
         }
 
         #[allow(non_snake_case)]

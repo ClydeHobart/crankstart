@@ -1,8 +1,6 @@
 use {
     crate::{
-        CrankstartAPI, Game,
-        alloc::{boxed::Box, rc::Rc},
-        define_crankstart_api, ensure,
+        CrankstartAPI, Game, System, define_crankstart_api, ensure, eprintln,
         pd_api::{
             __va_list_tag, LCDBitmap, PDButtonCallbackFunction, PDButtons, PDCallbackFunction,
             PDDateTime, PDLanguage, PDMenuItem, PDMenuItemCallbackFunction, PDPeripherals,
@@ -12,6 +10,7 @@ use {
         q,
         util::{
             euclid::IPxPoint2D,
+            ptr::{PtrInner, PtrTrait, UntypedPtr},
             singleton::Singleton,
             string::{ArrayStringTrait, TempString},
         },
@@ -19,19 +18,23 @@ use {
     anyhow::{Error, Result},
     arrayvec::ArrayVec,
     core::{
-        cell::{RefCell, RefMut},
+        cell::{Ref, RefCell, RefMut},
         convert::TryFrom,
         ffi::CStr,
-        fmt::Write,
         num::TryFromIntError,
-        ptr::null_mut,
+        ptr::{NonNull, null_mut},
         result::Result as CoreResult,
         time::Duration as CoreDuration,
     },
     euclid::default::Vector3D,
 };
 
-pub const MAX_OPTIONS: usize = 32_usize;
+pub const MAX_OPTION_COUNT: usize = 32_usize;
+pub const MAX_MENU_ITEM_COUNT: usize = 32_usize;
+
+pub type DefaultMenuItemCallback = fn();
+pub type CheckboxMenuItemCallback = fn(is_checked: bool);
+pub type OptionsMenuItemCallback = fn(option_index: usize);
 
 #[derive(Default, Clone, Copy)]
 pub struct ButtonState {
@@ -66,97 +69,98 @@ impl TryFrom<CoreDuration> for Duration {
     }
 }
 
+#[derive(Default)]
+struct MenuItemArrayVec(ArrayVec<MenuItemPtr, MAX_MENU_ITEM_COUNT>);
+
+impl System for MenuItemArrayVec {}
+
 define_crankstart_api! {
     pub struct SysAPI => playdate_sys {
         ; // No sub-API fields
-        pub(crate) realloc: unsafe extern "C" fn(ptr: *mut c_void, size: usize) -> *mut c_void,
-        pub(crate) formatString: unsafe extern "C" fn(
+        realloc: unsafe extern "C" fn(ptr: *mut c_void, size: usize) -> *mut c_void,
+        formatString: unsafe extern "C" fn(
             ret: *mut *mut c_char,
             fmt: *const c_char,
             ...
         ) -> i32,
-        pub(crate) logToConsole: unsafe extern "C" fn(fmt: *const c_char, ...),
-        pub(crate) error: unsafe extern "C" fn(fmt: *const c_char, ...),
-        pub(crate) getLanguage: unsafe extern "C" fn() -> PDLanguage,
-        pub(crate) getCurrentTimeMilliseconds: unsafe extern "C" fn() -> u32,
-        pub(crate) getSecondsSinceEpoch: unsafe extern "C" fn(milliseconds: *mut u32) -> u32,
-        pub(crate) drawFPS: unsafe extern "C" fn(x: i32, y: i32),
-        pub(crate) setUpdateCallback:
+        logToConsole: unsafe extern "C" fn(fmt: *const c_char, ...),
+        error: unsafe extern "C" fn(fmt: *const c_char, ...),
+        getLanguage: unsafe extern "C" fn() -> PDLanguage,
+        getCurrentTimeMilliseconds: unsafe extern "C" fn() -> u32,
+        getSecondsSinceEpoch: unsafe extern "C" fn(milliseconds: *mut u32) -> u32,
+        drawFPS: unsafe extern "C" fn(x: i32, y: i32),
+        setUpdateCallback:
             unsafe extern "C" fn(update: PDCallbackFunction, userdata: *mut c_void),
-        pub(crate) getButtonState: unsafe extern "C" fn(
+        getButtonState: unsafe extern "C" fn(
             current: *mut PDButtons,
             pushed: *mut PDButtons,
             released: *mut PDButtons,
         ),
-        pub(crate) setPeripheralsEnabled: unsafe extern "C" fn(mask: PDPeripherals),
-        pub(crate) getAccelerometer:
+        setPeripheralsEnabled: unsafe extern "C" fn(mask: PDPeripherals),
+        getAccelerometer:
             unsafe extern "C" fn(outx: *mut f32, outy: *mut f32, outz: *mut f32),
-        pub(crate) getCrankChange: unsafe extern "C" fn() -> f32,
-        pub(crate) getCrankAngle: unsafe extern "C" fn() -> f32,
-        pub(crate) isCrankDocked: unsafe extern "C" fn() -> i32,
-        pub(crate) setCrankSoundsDisabled: unsafe extern "C" fn(flag: i32) -> i32,
-        pub(crate) getFlipped: unsafe extern "C" fn() -> i32,
-        pub(crate) setAutoLockDisabled: unsafe extern "C" fn(disable: i32),
-        pub(crate) setMenuImage: unsafe extern "C" fn(bitmap: *mut LCDBitmap, xOffset: i32),
-        pub(crate) addMenuItem: unsafe extern "C" fn(
+        getCrankChange: unsafe extern "C" fn() -> f32,
+        getCrankAngle: unsafe extern "C" fn() -> f32,
+        isCrankDocked: unsafe extern "C" fn() -> i32,
+        setCrankSoundsDisabled: unsafe extern "C" fn(flag: i32) -> i32,
+        getFlipped: unsafe extern "C" fn() -> i32,
+        setAutoLockDisabled: unsafe extern "C" fn(disable: i32),
+        setMenuImage: unsafe extern "C" fn(bitmap: *mut LCDBitmap, xOffset: i32),
+        addMenuItem: unsafe extern "C" fn(
             title: *const c_char,
             callback: PDMenuItemCallbackFunction,
             userdata: *mut c_void,
         ) -> *mut PDMenuItem,
-        pub(crate) addCheckmarkMenuItem: unsafe extern "C" fn(
+        addCheckmarkMenuItem: unsafe extern "C" fn(
             title: *const c_char,
             value: i32,
             callback: PDMenuItemCallbackFunction,
             userdata: *mut c_void,
         ) -> *mut PDMenuItem,
-        pub(crate) addOptionsMenuItem: unsafe extern "C" fn(
+        addOptionsMenuItem: unsafe extern "C" fn(
             title: *const c_char,
             optionTitles: *mut *const c_char,
             optionsCount: i32,
-            f: PDMenuItemCallbackFunction,
+            callback: PDMenuItemCallbackFunction,
             userdata: *mut c_void,
         ) -> *mut PDMenuItem,
-        pub(crate) removeAllMenuItems: unsafe extern "C" fn(),
-        pub(crate) removeMenuItem: unsafe extern "C" fn(menuItem: *mut PDMenuItem),
-        pub(crate) getMenuItemValue: unsafe extern "C" fn(menuItem: *mut PDMenuItem) -> i32,
-        pub(crate) setMenuItemValue:  unsafe extern "C" fn(menuItem: *mut PDMenuItem, value: i32),
-        pub(crate) getMenuItemTitle:
-            unsafe extern "C" fn(menuItem: *mut PDMenuItem) -> *const c_char,
-        pub(crate) setMenuItemTitle:
-            unsafe extern "C" fn(menuItem: *mut PDMenuItem, title: *const c_char),
-        pub(crate) getMenuItemUserdata:
-            unsafe extern "C" fn(menuItem: *mut PDMenuItem) -> *mut c_void,
-        pub(crate) setMenuItemUserdata:
-            unsafe extern "C" fn(menuItem: *mut PDMenuItem, ud: *mut c_void),
-        pub(crate) getReduceFlashing: unsafe extern "C" fn() -> i32,
-        pub(crate) getElapsedTime: unsafe extern "C" fn() -> f32,
-        pub(crate) resetElapsedTime: unsafe extern "C" fn(),
-        pub(crate) getBatteryPercentage: unsafe extern "C" fn() -> f32,
-        pub(crate) getBatteryVoltage: unsafe extern "C" fn() -> f32,
-        pub(crate) getTimezoneOffset: unsafe extern "C" fn() -> i32,
-        pub(crate) shouldDisplay24HourTime: unsafe extern "C" fn() -> i32,
-        pub(crate) convertEpochToDateTime:
-            unsafe extern "C" fn(epoch: u32, datetime: *mut PDDateTime),
-        pub(crate) convertDateTimeToEpoch: unsafe extern "C" fn(datetime: *mut PDDateTime) -> u32,
-        pub(crate) clearICache: unsafe extern "C" fn(),
-        pub(crate) setButtonCallback: unsafe extern "C" fn(
+        removeAllMenuItems: unsafe extern "C" fn(),
+        removeMenuItem: unsafe extern "C" fn(menuItem: *mut PDMenuItem),
+        getMenuItemValue: unsafe extern "C" fn(menuItem: *mut PDMenuItem) -> i32,
+        setMenuItemValue:  unsafe extern "C" fn(menuItem: *mut PDMenuItem, value: i32),
+        getMenuItemTitle: unsafe extern "C" fn(menuItem: *mut PDMenuItem) -> *const c_char,
+        setMenuItemTitle: unsafe extern "C" fn(menuItem: *mut PDMenuItem, title: *const c_char),
+        getMenuItemUserdata: unsafe extern "C" fn(menuItem: *mut PDMenuItem) -> *mut c_void,
+        setMenuItemUserdata: unsafe extern "C" fn(menuItem: *mut PDMenuItem, ud: *mut c_void),
+        getReduceFlashing: unsafe extern "C" fn() -> i32,
+        getElapsedTime: unsafe extern "C" fn() -> f32,
+        resetElapsedTime: unsafe extern "C" fn(),
+        getBatteryPercentage: unsafe extern "C" fn() -> f32,
+        getBatteryVoltage: unsafe extern "C" fn() -> f32,
+        getTimezoneOffset: unsafe extern "C" fn() -> i32,
+        shouldDisplay24HourTime: unsafe extern "C" fn() -> i32,
+        convertEpochToDateTime: unsafe extern "C" fn(epoch: u32, datetime: *mut PDDateTime),
+        convertDateTimeToEpoch: unsafe extern "C" fn(datetime: *mut PDDateTime) -> u32,
+        clearICache: unsafe extern "C" fn(),
+        setButtonCallback: unsafe extern "C" fn(
             cb: PDButtonCallbackFunction,
             buttonud: *mut c_void,
             queuesize: i32,
         ),
-        pub(crate) setSerialMessageCallback: unsafe extern "C" fn(
+        setSerialMessageCallback: unsafe extern "C" fn(
             callback: Option<unsafe extern "C" fn(data: *const c_char)>,
         ),
-        pub(crate) vaFormatString: unsafe extern "C" fn(
+        vaFormatString: unsafe extern "C" fn(
             outstr: *mut *mut c_char,
             fmt: *const c_char,
             args: *mut __va_list_tag,
         ) -> i32,
-        pub(crate) parseString: unsafe extern "C" fn(
+        parseString: unsafe extern "C" fn(
             str_: *const c_char,
             format: *const c_char,
             ...
         ) -> i32;
+        menu_items: RefCell<MenuItemArrayVec>,
     }
 }
 
@@ -218,17 +222,6 @@ impl SysAPI {
         }
     }
 
-    pub(crate) fn set_update_callback<G: Game>(&self, callback_function: PDCallbackFunction) {
-        let user_data: *mut c_void = G::try_get_mut().map_or(null_mut(), |mut game: RefMut<G>| {
-            (&mut (*game)) as *mut G as *mut c_void
-        });
-
-        // This is admittedly not guaranteed to be memory safe, but this is how the C API is set up.
-        unsafe {
-            (self.setUpdateCallback)(callback_function, user_data);
-        }
-    }
-
     pub fn get_button_state(&self) -> ButtonState {
         let mut button_state: ButtonState = Default::default();
 
@@ -286,30 +279,27 @@ impl SysAPI {
     }
 
     /// Adds a option to the menu. The callback is called when the option is selected.
-    pub fn add_menu_item(&self, title: &str, callback: Box<dyn Fn()>) -> Result<MenuItem> {
-        let mut local_title: TempString = TempString::new();
-
+    pub fn add_default_menu_item(
+        &self,
+        title: &str,
+        callback: DefaultMenuItemCallback,
+    ) -> Result<MenuItemPtr> {
+        ensure!(!self.menu_items.borrow().0.is_full());
         ensure!(title.is_ascii());
-        write!(&mut local_title, "{title}")?;
 
-        let c_str: &CStr = q!(CStr::from_bytes_with_nul(local_title.as_bytes()));
-        let wrapped_callback: Box<Box<dyn Fn()>> = Box::new(callback);
-        let raw_callback_ptr: *mut Box<dyn Fn()> = Box::into_raw(wrapped_callback);
-        let item: *mut PDMenuItem = unsafe {
-            (self.addMenuItem)(
-                c_str.as_ptr(),
-                Some(Self::menu_item_callback),
-                raw_callback_ptr as *mut c_void,
-            )
-        };
+        let title: TempString = TempString::clone_null_terminated(title);
+        let title: *const c_char = title.as_ptr() as *const c_char;
+        let pd_menu_item: *mut PDMenuItem =
+            unsafe { (self.addMenuItem)(title, Some(Self::menu_item_callback), null_mut()) };
+        let pd_menu_item: NonNull<PDMenuItem> = q!(NonNull::new(pd_menu_item).ok_or(()));
+        let menu_item: MenuItemPtr =
+            MenuItemPtr::new(pd_menu_item, MenuItemState::new_default(callback));
 
-        Ok(MenuItem {
-            inner: Rc::new(RefCell::new(MenuItemInner {
-                item,
-                raw_callback_ptr,
-            })),
-            kind: MenuItemKind::Normal,
-        })
+        // Now the `MenuItemState` is living on the heap and can safely be set as the userdata.
+        self.set_menu_item_user_data(&menu_item);
+        self.menu_items.borrow_mut().0.push(menu_item.clone());
+
+        Ok(menu_item)
     }
 
     /// Adds a option to the menu that has a checkbox. The initial_checked_state is the initial
@@ -319,33 +309,31 @@ impl SysAPI {
     pub fn add_checkmark_menu_item(
         &self,
         title: &str,
-        initial_checked_state: bool,
-        callback: Box<dyn Fn()>,
-    ) -> Result<MenuItem, Error> {
-        let mut local_title: TempString = TempString::new();
-
+        is_checked: bool,
+        callback: CheckboxMenuItemCallback,
+    ) -> Result<MenuItemPtr> {
+        ensure!(!self.menu_items.borrow().0.is_full());
         ensure!(title.is_ascii());
-        write!(&mut local_title, "{title}")?;
 
-        let c_str: &CStr = q!(CStr::from_bytes_with_nul(local_title.as_bytes()));
-        let wrapped_callback: Box<Box<dyn Fn()>> = Box::new(callback);
-        let raw_callback_ptr: *mut Box<dyn Fn()> = Box::into_raw(wrapped_callback);
-        let item: *mut PDMenuItem = unsafe {
+        let title: TempString = TempString::clone_null_terminated(title);
+        let title: *const c_char = title.as_ptr() as *const c_char;
+        let pd_menu_item: *mut PDMenuItem = unsafe {
             (self.addCheckmarkMenuItem)(
-                c_str.as_ptr(),
-                initial_checked_state as i32,
+                title,
+                is_checked as i32,
                 Some(Self::menu_item_callback),
-                raw_callback_ptr as *mut c_void,
+                null_mut(),
             )
         };
+        let pd_menu_item: NonNull<PDMenuItem> = q!(NonNull::new(pd_menu_item).ok_or(()));
+        let menu_item: MenuItemPtr =
+            MenuItemPtr::new(pd_menu_item, MenuItemState::new_checkmark(callback));
 
-        Ok(MenuItem {
-            inner: Rc::new(RefCell::new(MenuItemInner {
-                item,
-                raw_callback_ptr,
-            })),
-            kind: MenuItemKind::Checkmark,
-        })
+        // Now the `MenuItemState` is living on the heap and can safely be set as the userdata.
+        self.set_menu_item_user_data(&menu_item);
+        self.menu_items.borrow_mut().0.push(menu_item.clone());
+
+        Ok(menu_item)
     }
 
     /// Adds a option to the menu that has multiple values that can be cycled through. The initial
@@ -356,15 +344,17 @@ impl SysAPI {
         &self,
         title: &str,
         options: &[&str],
-        callback: Box<dyn Fn()>,
-    ) -> Result<MenuItem, Error> {
+        callback: OptionsMenuItemCallback,
+    ) -> Result<MenuItemPtr, Error> {
+        ensure!(!self.menu_items.borrow().0.is_full());
         ensure!(title.is_ascii());
-        ensure!(options.len() <= MAX_OPTIONS);
-
-        type OptionArrayVec = ArrayVec<TempString, MAX_OPTIONS>;
+        ensure!(options.len() <= MAX_OPTION_COUNT);
 
         let title: TempString = TempString::clone_null_terminated(title);
         let title: *const c_char = title.as_ptr() as *const c_char;
+
+        type OptionArrayVec = ArrayVec<TempString, MAX_OPTION_COUNT>;
+
         let options: OptionArrayVec = options
             .iter()
             .copied()
@@ -375,73 +365,98 @@ impl SysAPI {
             })
             .collect::<Result<OptionArrayVec, Error>>()?;
 
-        type COptionArrayVec = ArrayVec<*const c_char, MAX_OPTIONS>;
+        type COptionArrayVec = ArrayVec<*const c_char, MAX_OPTION_COUNT>;
 
         let options: COptionArrayVec = options
             .iter()
             .map(|option| option.as_ptr() as *const c_char)
             .collect();
         let options_titles: *mut *const c_char = options.as_ptr() as *mut *const c_char;
-        let options_count: i32 = options.len() as i32;
-        let f: PDMenuItemCallbackFunction = Some(Self::menu_item_callback);
-        let wrapped_callback: Box<Box<dyn Fn()>> = Box::new(callback);
-        let raw_callback_ptr = Box::into_raw(wrapped_callback);
-        let userdata: *mut c_void = raw_callback_ptr as *mut c_void;
-        let item: *mut PDMenuItem =
-            unsafe { (self.addOptionsMenuItem)(title, options_titles, options_count, f, userdata) };
-        let inner: Rc<RefCell<MenuItemInner>> = Rc::new(RefCell::new(MenuItemInner {
-            item,
-            raw_callback_ptr,
-        }));
-        let kind: MenuItemKind = MenuItemKind::Options { options_count };
+        let pd_menu_item: *mut PDMenuItem = unsafe {
+            (self.addOptionsMenuItem)(
+                title,
+                options_titles,
+                options.len() as i32,
+                Some(Self::menu_item_callback),
+                null_mut(),
+            )
+        };
+        let pd_menu_item: NonNull<PDMenuItem> = q!(NonNull::new(pd_menu_item).ok_or(()));
+        let menu_item: MenuItemPtr = MenuItemPtr::new(
+            pd_menu_item,
+            q!(MenuItemState::try_new_options(options.len(), callback)),
+        );
 
-        Ok(MenuItem { inner, kind })
+        // Now the `MenuItemState` is living on the heap and can safely be set as the userdata.
+        self.set_menu_item_user_data(&menu_item);
+        self.menu_items.borrow_mut().0.push(menu_item.clone());
+
+        Ok(menu_item)
     }
 
-    pub fn remove_menu_item(&self, item: MenuItem) {
+    pub fn remove_all_menu_items(&self) {
+        unsafe {
+            ((self.removeAllMenuItems)());
+        }
+
+        for menu_item in &mut self.menu_items.borrow_mut().0.drain(..) {
+            if let Some(mut menu_item_state) = menu_item.try_borrow_state_mut() {
+                menu_item_state.mark_as_removed();
+            }
+        }
+    }
+
+    pub fn remove_menu_item(&self, menu_item: MenuItemPtr) {
+        self.menu_items
+            .borrow_mut()
+            .0
+            .retain(|stored_menu_item| stored_menu_item != &menu_item);
+
         // Explicitly drops item. The actual calling of the removeMenuItem (via
         // `remove_menu_item_internal`) is done in the drop impl to avoid calling it multiple times,
         // even though that's been experimentally shown to be safe.
-        drop(item);
+        drop(menu_item);
     }
 
     /// Returns the state of a given menu item. The meaning depends on the type of menu item. If it
     /// is the checkbox, the int represents the boolean checked state. If it's a option the int
     /// represents the index of the option array.
-    pub fn get_menu_item_value(&self, menu_item: &MenuItem) -> usize {
-        unsafe { (self.getMenuItemValue)(menu_item.inner.borrow().item) as usize }
+    pub fn get_menu_item_value(&self, menu_item: &MenuItemPtr) -> usize {
+        unsafe { (self.getMenuItemValue)(menu_item.get_pd_ptr().as_ptr()) as usize }
     }
 
     /// Set the value of a given menu item. The meaning depends on the type of menu item. Picking
     /// the right value is left up to the caller, but is protected by the `MenuItemKind` of the
     /// `menu_item` passed
-    pub fn set_menu_item_value(&self, menu_item: &MenuItem, value: usize) -> Result<(), Error> {
-        match &menu_item.kind {
-            MenuItemKind::Normal => {}
-            MenuItemKind::Checkmark => {
-                ensure!(value <= 1_usize);
-            }
-            MenuItemKind::Options { options_count } => {
-                ensure!(value < *options_count as usize);
-            }
-        };
+    pub fn set_menu_item_value(&self, menu_item: &MenuItemPtr, value: usize) -> Result<()> {
+        {
+            let menu_item_state: Ref<MenuItemState> = q!(menu_item.try_borrow_state().ok_or(()));
+            let is_value_valid_for_checkmark: bool =
+                !menu_item_state.is_checkmark() || value <= 1_usize;
+
+            let is_value_valid_for_options: bool = menu_item_state
+                .try_get_option_count()
+                .map_or(true, |option_count| value < option_count);
+            ensure!(is_value_valid_for_checkmark);
+            ensure!(is_value_valid_for_options);
+        }
 
         unsafe {
-            (self.setMenuItemValue)(menu_item.inner.borrow().item, value as i32);
+            (self.setMenuItemValue)(menu_item.get_pd_ptr().as_ptr(), value as i32);
         }
 
         Ok(())
     }
 
     /// Set the title of a given menu item
-    pub fn set_menu_item_title(&self, menu_item: &MenuItem, title: &str) -> Result<(), Error> {
+    pub fn set_menu_item_title(&self, menu_item: &MenuItemPtr, title: &str) -> Result<(), Error> {
         ensure!(title.is_ascii());
 
         let title: TempString = TempString::clone_null_terminated(title);
         let title: *const c_char = title.as_ptr() as *const c_char;
 
         unsafe {
-            (self.setMenuItemTitle)(menu_item.inner.borrow().item, title);
+            (self.setMenuItemTitle)(menu_item.get_pd_ptr().as_ptr(), title);
         }
 
         Ok(())
@@ -497,6 +512,17 @@ impl SysAPI {
         }
     }
 
+    pub(crate) fn set_update_callback<G: Game>(&self, callback_function: PDCallbackFunction) {
+        let user_data: *mut c_void = G::try_get_mut().map_or(null_mut(), |mut game: RefMut<G>| {
+            (&mut (*game)) as *mut G as *mut c_void
+        });
+
+        // This is admittedly not guaranteed to be memory safe, but this is how the C API is set up.
+        unsafe {
+            (self.setUpdateCallback)(callback_function, user_data);
+        }
+    }
+
     fn try_log_internal(
         &self,
         string: &str,
@@ -515,51 +541,174 @@ impl SysAPI {
         Ok(())
     }
 
-    fn remove_menu_item_internal(&self, item_inner: &MenuItemInner) {
+    fn set_menu_item_user_data(&self, menu_item: &MenuItemPtr) {
+        let pd_menu_item: *mut PDMenuItem = menu_item.get_pd_ptr().as_ptr();
+        let ptr_inner: &PtrInner<MenuItemPtr> = menu_item.get_ptr_inner();
+        let user_data: *mut c_void = ptr_inner as *const PtrInner<MenuItemPtr> as *mut c_void;
+
         unsafe {
-            (self.removeMenuItem)(item_inner.item);
+            (self.setMenuItemUserdata)(pd_menu_item, user_data);
+        }
+    }
+
+    fn remove_menu_item_internal(&self, pd_menu_item: NonNull<PDMenuItem>) {
+        unsafe {
+            (self.removeMenuItem)(pd_menu_item.as_ptr());
         }
     }
 
     extern "C" fn menu_item_callback(user_data: *mut c_void) {
-        let callback: *mut Box<dyn Fn()> = user_data as *mut Box<dyn Fn()>;
-
-        if let Some(callback) = callback
-            .is_aligned()
-            .then_some(())
-            .and_then(|_| unsafe { callback.as_ref() })
-        {
-            callback();
+        match Self::menu_item_callback_internal(user_data) {
+            Err(e) => {
+                eprintln!("{e}");
+            }
+            _ => (),
         }
+    }
+
+    fn menu_item_callback_internal(user_data: *mut c_void) -> Result<()> {
+        let ptr_inner: *const PtrInner<MenuItemPtr> = user_data as *const PtrInner<MenuItemPtr>;
+
+        ensure!(!ptr_inner.is_null());
+        ensure!(ptr_inner.is_aligned());
+
+        let ptr_inner: &PtrInner<MenuItemPtr> = q!(unsafe { ptr_inner.as_ref() }.ok_or(()));
+        let menu_item: MenuItemPtr = q!(CrankstartAPI::get()
+            .ptr_manager
+            .borrow()
+            .try_get_ptr(ptr_inner)
+            .ok_or(()));
+        let menu_item_state: Ref<MenuItemState> = q!(menu_item.try_borrow_state().ok_or(()));
+
+        menu_item_state.invoke_callback(&menu_item);
+
+        Ok(())
+    }
+
+    #[cfg(not(any(test, doctest)))]
+    pub(crate) fn realloc(&self, ptr: *mut u8, size: usize) -> *mut u8 {
+        unsafe { (self.realloc)(ptr as *mut c_void, size) as *mut u8 }
     }
 }
 
-/// The kind of menu item. See `System::add_{,checkmark_,options_}menu_item` for more details.
-pub enum MenuItemKind {
-    Normal,
-    Checkmark,
-    Options { options_count: i32 },
+enum MenuItemKind {
+    Default {
+        was_removed: bool,
+        callback: DefaultMenuItemCallback,
+    },
+    Checkmark {
+        was_removed: bool,
+        callback: CheckboxMenuItemCallback,
+    },
+    Options {
+        was_removed: bool,
+        option_count: u8,
+        callback: OptionsMenuItemCallback,
+    },
 }
 
-struct MenuItemInner {
-    item: *mut PDMenuItem,
-    raw_callback_ptr: *mut Box<dyn Fn()>,
-}
+pub struct MenuItemState(MenuItemKind);
 
-impl Drop for MenuItemInner {
-    fn drop(&mut self) {
-        // We must remove the menu item on drop to avoid a memory or having the firmware read
-        // unmanaged memory.
-        CrankstartAPI::get().system.remove_menu_item_internal(self);
+impl MenuItemState {
+    pub fn is_default(&self) -> bool {
+        matches!(self.0, MenuItemKind::Default { .. })
+    }
 
-        unsafe {
-            // Recast into box to let Box deal with freeing the right memory
-            let _: Box<Box<dyn Fn()>> = Box::from_raw(self.raw_callback_ptr);
+    pub fn is_checkmark(&self) -> bool {
+        matches!(self.0, MenuItemKind::Checkmark { .. })
+    }
+
+    pub fn is_options(&self) -> bool {
+        matches!(self.0, MenuItemKind::Options { .. })
+    }
+
+    pub fn try_get_option_count(&self) -> Option<usize> {
+        match self.0 {
+            MenuItemKind::Options { option_count, .. } => Some(option_count as usize),
+            _ => None,
         }
+    }
+
+    fn new_default(callback: DefaultMenuItemCallback) -> Self {
+        Self(MenuItemKind::Default {
+            was_removed: false,
+            callback,
+        })
+    }
+
+    fn new_checkmark(callback: CheckboxMenuItemCallback) -> Self {
+        Self(MenuItemKind::Checkmark {
+            was_removed: false,
+            callback,
+        })
+    }
+
+    fn try_new_options(option_count: usize, callback: OptionsMenuItemCallback) -> Result<Self> {
+        ensure!(option_count < MAX_OPTION_COUNT);
+
+        Ok(Self(MenuItemKind::Options {
+            was_removed: false,
+            option_count: option_count as u8,
+            callback,
+        }))
+    }
+
+    fn invoke_callback(&self, menu_item: &MenuItemPtr) {
+        let crankstart_api: Ref<CrankstartAPI> = CrankstartAPI::get();
+
+        match self.0 {
+            MenuItemKind::Default { callback, .. } => {
+                callback();
+            }
+            MenuItemKind::Checkmark { callback, .. } => {
+                callback(crankstart_api.system.get_menu_item_value(menu_item) != 0_usize);
+            }
+            MenuItemKind::Options { callback, .. } => {
+                callback(crankstart_api.system.get_menu_item_value(menu_item))
+            }
+        }
+    }
+
+    fn was_removed(&self) -> bool {
+        match self.0 {
+            MenuItemKind::Default { was_removed, .. } => was_removed,
+            MenuItemKind::Checkmark { was_removed, .. } => was_removed,
+            MenuItemKind::Options { was_removed, .. } => was_removed,
+        }
+    }
+
+    fn mark_as_removed(&mut self) {
+        *match &mut self.0 {
+            MenuItemKind::Default { was_removed, .. } => was_removed,
+            MenuItemKind::Checkmark { was_removed, .. } => was_removed,
+            MenuItemKind::Options { was_removed, .. } => was_removed,
+        } = true;
     }
 }
 
-pub struct MenuItem {
-    inner: Rc<RefCell<MenuItemInner>>,
-    pub kind: MenuItemKind,
+#[derive(Clone, PartialEq)]
+pub struct MenuItemPtr(UntypedPtr);
+
+impl From<UntypedPtr> for MenuItemPtr {
+    fn from(value: UntypedPtr) -> Self {
+        Self(value)
+    }
+}
+
+impl PtrTrait for MenuItemPtr {
+    type PDType = PDMenuItem;
+
+    type State = MenuItemState;
+
+    fn get_untyped_ptr(&self) -> &UntypedPtr {
+        &self.0
+    }
+
+    fn remove_pd_ptr(pd_ptr: NonNull<Self::PDType>, state: &Self::State) {
+        if !state.was_removed() {
+            CrankstartAPI::get()
+                .system
+                .remove_menu_item_internal(pd_ptr);
+        }
+    }
 }
