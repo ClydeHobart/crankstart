@@ -9,6 +9,7 @@ use {
         },
         q,
         util::{
+            callback::Callback,
             euclid::IPxPoint2D,
             ptr::{PtrInner, PtrTrait, UntypedPtr},
             singleton::Singleton,
@@ -32,9 +33,9 @@ use {
 pub const MAX_OPTION_COUNT: usize = 32_usize;
 pub const MAX_MENU_ITEM_COUNT: usize = 32_usize;
 
-pub type DefaultMenuItemCallback = fn();
-pub type CheckboxMenuItemCallback = fn(is_checked: bool);
-pub type OptionsMenuItemCallback = fn(option_index: usize);
+pub type DefaultMenuItemCallback = Callback;
+pub type CheckboxMenuItemCallback = Callback<bool>;
+pub type OptionsMenuItemCallback = Callback<usize>;
 
 #[derive(Default, Clone, Copy)]
 pub struct ButtonState {
@@ -656,21 +657,21 @@ impl MenuItemState {
     fn invoke_callback(&self, menu_item: &MenuItemPtr) {
         let crankstart_api: Ref<CrankstartAPI> = CrankstartAPI::get();
 
-        match self.0 {
+        match &self.0 {
             MenuItemKind::Default { callback, .. } => {
-                callback();
+                callback.invoke(());
             }
             MenuItemKind::Checkmark { callback, .. } => {
-                callback(crankstart_api.system.get_menu_item_value(menu_item) != 0_usize);
+                callback.invoke(crankstart_api.system.get_menu_item_value(menu_item) != 0_usize);
             }
             MenuItemKind::Options { callback, .. } => {
-                callback(crankstart_api.system.get_menu_item_value(menu_item))
+                callback.invoke(crankstart_api.system.get_menu_item_value(menu_item))
             }
         }
     }
 
     fn was_removed(&self) -> bool {
-        match self.0 {
+        *match &self.0 {
             MenuItemKind::Default { was_removed, .. } => was_removed,
             MenuItemKind::Checkmark { was_removed, .. } => was_removed,
             MenuItemKind::Options { was_removed, .. } => was_removed,
