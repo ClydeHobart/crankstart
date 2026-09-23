@@ -7,7 +7,7 @@ use crate::{
 };
 
 define_crankstart_api! {
-    pub struct JSONAPI => playdate_json {
+    pub struct JsonAPI => playdate_json {
         ; // No sub-API fields
         pub(crate) initEncoder: unsafe extern "C" fn(
             encoder: *mut json_encoder,
