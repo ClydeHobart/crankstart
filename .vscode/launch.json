@@ -1,0 +1,32 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    // "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug Ex Sys On PlaydateSimulator",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "cwd": "${workspaceFolder}\\examples\\sys",
+            "program": "${env:PLAYDATE_SDK_PATH}\\bin\\PlaydateSimulator.exe",
+            "args": [
+                "${cwd}\\target\\sys.pdx"
+            ],
+            "symbolSearchPath": "${cwd}\\target\\debug",
+            "stopAtEntry": false
+        },
+        {
+            "name": "Debug Ex Crankbone On PlaydateSimulator",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "cwd": "${workspaceFolder}\\examples\\crankbone",
+            "program": "${env:PLAYDATE_SDK_PATH}\\bin\\PlaydateSimulator.exe",
+            "args": [
+                "${cwd}\\examples\\crankbone\\target\\Crankbone.pdx"
+            ],
+            "symbolSearchPath": "${cwd}\\examples\\crankbone\\target\\debug",
+            "stopAtEntry": false
+        }
+    ]
+}

@@ -1,10 +1,13 @@
 use {crate::breakpoint_nop, arrayvec::ArrayString, core::ffi::c_char};
 
+pub const SMALL_TEMP_STRING_SIZE: usize = 64_usize;
+pub const TEMP_STRING_SIZE: usize = 256_usize;
+pub const LONG_TEMP_STRING_SIZE: usize = 1024_usize;
+
 const NULL_CHAR: char = 0 as char;
 const NULL_C_CHAR: c_char = NULL_CHAR as c_char;
-const TEMP_STRING_SIZE: usize = 256_usize;
-const LONG_TEMP_STRING_SIZE: usize = 1024_usize;
 
+pub type SmallTempString = ArrayString<SMALL_TEMP_STRING_SIZE>;
 pub type TempString = ArrayString<TEMP_STRING_SIZE>;
 pub type LongTempString = ArrayString<LONG_TEMP_STRING_SIZE>;
 

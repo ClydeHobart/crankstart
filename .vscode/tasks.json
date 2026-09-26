@@ -1,0 +1,12 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Run Playdate Sim",
+            "type": "shell",
+            "command": "crank run --example sys",
+            "problemMatcher": [],
+            "isBackground": true // Allows the task to keep running while you attach
+        }
+    ]
+}

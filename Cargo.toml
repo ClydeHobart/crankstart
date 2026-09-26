@@ -16,8 +16,9 @@ panic_immediate_abort = false
 
 [profile.dev]
 panic = "abort"
-opt-level = 2
-lto = true
+opt-level = 0
+debug = 2
+lto = false
 
 [profile.release]
 panic = "abort"
@@ -25,29 +26,12 @@ opt-level = 'z'
 lto = true
 
 [profile.test]
-panic = "abort"
-opt-level = 2
-lto = true
+opt-level = 0
+debug = 2
+lto = false
 
-# [[example]]
-# name = "hello_world"
-# path = "examples/hello_world.rs"
-# crate-type = ["staticlib", "cdylib"]
-# 
-# [[example]]
-# name = "menu_items"
-# path = "examples/menu_items.rs"
-# crate-type = ["staticlib", "cdylib"]
-# 
-# [[example]]
-# name = "life"
-# path = "examples/life.rs"
-# crate-type = ["staticlib", "cdylib"]
-# 
-# [[example]]
-# name = "sprite_game"
-# path = "examples/sprite_game.rs"
-# crate-type = ["staticlib", "cdylib"]
+# [workspace]
+# members = [ "examples/sys" ]
 
 [dependencies]
 anyhow = { version = "1.0.31", default-features = false }
@@ -62,8 +46,3 @@ randomize = "3.0.1"
 enum-iterator = "0.6.0"
 rand = { version = "0.8.4", default-features = false, features = [ "alloc" ] }
 rand_pcg = "0.3.1"
-
-[[example]]
-name = "sys"
-path = "examples/sys.rs"
-crate-type = ["staticlib", "cdylib"]
