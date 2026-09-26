@@ -1,4 +1,4 @@
-.sentry-native
+# .sentry-native
 target
 Cargo.lock
 /sprite_game_images
