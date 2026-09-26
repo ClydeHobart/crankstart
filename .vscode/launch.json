@@ -11,21 +11,9 @@
             "cwd": "${workspaceFolder}\\examples\\sys",
             "program": "${env:PLAYDATE_SDK_PATH}\\bin\\PlaydateSimulator.exe",
             "args": [
-                "${cwd}\\target\\sys.pdx"
+                "${cwd}\\examples\\sys\\target\\sys.pdx"
             ],
-            "symbolSearchPath": "${cwd}\\target\\debug",
-            "stopAtEntry": false
-        },
-        {
-            "name": "Debug Ex Crankbone On PlaydateSimulator",
-            "type": "cppvsdbg",
-            "request": "launch",
-            "cwd": "${workspaceFolder}\\examples\\crankbone",
-            "program": "${env:PLAYDATE_SDK_PATH}\\bin\\PlaydateSimulator.exe",
-            "args": [
-                "${cwd}\\examples\\crankbone\\target\\Crankbone.pdx"
-            ],
-            "symbolSearchPath": "${cwd}\\examples\\crankbone\\target\\debug",
+            "symbolSearchPath": "${cwd}\\examples\\sys\\target\\debug",
             "stopAtEntry": false
         }
     ]

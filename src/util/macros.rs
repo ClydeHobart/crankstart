@@ -87,6 +87,15 @@ macro_rules! breakpoint_nop {
         #[cfg(debug_assertions)]
         {
             ::core::hint::black_box(());
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! breakpoint {
+    () => {
+        #[cfg(debug_assertions)]
+        {
             ::core::intrinsics::breakpoint();
         }
     };

@@ -13,10 +13,10 @@ panic = "abort"
 opt-level = 0
 lto = false
 
-[profile.release]
-panic = "abort"
-opt-level = 'z'
-lto = true
+# [profile.release]
+# panic = "abort"
+# opt-level = 'z'
+# lto = true
 
 [lib]
 crate-type = ["staticlib", "cdylib"]
