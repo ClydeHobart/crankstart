@@ -1,5 +1,5 @@
 use {
-    crate::{CrankstartAPI, breakpoint_nop, eprintln, util::singleton::Singleton},
+    crate::{CrankstartAPI, breakpoint, eprintln, util::singleton::Singleton},
     core::{
         alloc::{GlobalAlloc, Layout},
         intrinsics::abort,
@@ -20,6 +20,8 @@ fn abort_with_addr(addr: usize) -> ! {
 
 #[panic_handler]
 fn panic(panic_info: &PanicInfo) -> ! {
+    breakpoint!();
+
     if let Some(location) = panic_info.location() {
         eprintln!(
             "panic: {} @ {}:{}",
@@ -30,8 +32,6 @@ fn panic(panic_info: &PanicInfo) -> ! {
     } else {
         eprintln!("panic");
     }
-
-    breakpoint_nop!();
 
     abort_with_addr(0xdeadbeef);
 }

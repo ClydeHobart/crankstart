@@ -23,9 +23,11 @@ pub trait Singleton: Sized + 'static {
         // reference.
         let storage_mut: &mut Option<RefCell<Self>> = unsafe { Self::get_storage_mut_unchecked() };
 
-        assert!(storage_mut
-            .as_ref()
-            .map_or(true, |ref_cell| ref_cell.try_borrow_mut().is_ok()));
+        assert!(
+            storage_mut
+                .as_ref()
+                .map_or(true, |ref_cell| ref_cell.try_borrow_mut().is_ok())
+        );
 
         *storage_mut = Some(RefCell::new(value));
     }
@@ -34,20 +36,7 @@ pub trait Singleton: Sized + 'static {
 }
 
 fn get_storage<S: Singleton>() -> Option<&'static RefCell<S>> {
-    get_storage_mut::<S>().as_ref()
-}
-
-fn get_storage_mut<S: Singleton>() -> &'static mut Option<RefCell<S>> {
-    // SAFETY: We don't have many synchronization options available to us due to hardware
-    // restrictions, but we'll do our best to ensure nobody is actively holding onto a reference.
-    // Since the client code for the Playdate is all single-threaded, this should be sufficient.
-    let storage_mut: &mut Option<RefCell<S>> = unsafe { S::get_storage_mut_unchecked() };
-
-    assert!(storage_mut
-        .as_ref()
-        .map_or(true, |ref_cell| ref_cell.try_borrow_mut().is_ok()));
-
-    storage_mut
+    unsafe { S::get_storage_mut_unchecked() }.as_ref()
 }
 
 #[macro_export]

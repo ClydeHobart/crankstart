@@ -13,7 +13,7 @@ use {
             euclid::IPxPoint2D,
             ptr::{PtrInner, PtrTrait, UntypedPtr},
             singleton::Singleton,
-            string::{ArrayStringTrait, TempString},
+            string::{ArrayStringTrait, LongTempString, TempString},
         },
     },
     anyhow::{Error, Result},
@@ -21,7 +21,6 @@ use {
     core::{
         cell::{Ref, RefCell, RefMut},
         convert::TryFrom,
-        ffi::CStr,
         num::TryFromIntError,
         ptr::{NonNull, null_mut},
         result::Result as CoreResult,
@@ -167,14 +166,14 @@ define_crankstart_api! {
 
 impl SysAPI {
     /// A helper function used by macros `crankstart::println` and `crankstart::eprintln`.
-    pub fn print_internal<F: Fn(&mut TempString), G: Fn(&SysAPI, &str)>(
+    pub fn print_internal<F: Fn(&mut LongTempString), G: Fn(&SysAPI, &str)>(
         write_closure: F,
         log_fn: G,
     ) {
         // Don't use `CrankstartAPI::get` in here. If the singleton hasn't been setup yet, we'll get
         // a double-tap on startup that's difficult to debug.
         if let Some(crankstart_api) = CrankstartAPI::try_get() {
-            let mut temp_string: TempString = TempString::new();
+            let mut temp_string: LongTempString = LongTempString::new();
 
             write_closure(&mut temp_string);
 
@@ -531,12 +530,13 @@ impl SysAPI {
     ) -> Result<()> {
         ensure!(string.is_ascii());
 
-        let c_str: &CStr = q!(CStr::from_bytes_with_nul(string.as_bytes()));
+        let string: LongTempString = LongTempString::clone_null_terminated(string);
+        let string: *const c_char = string.as_ptr() as *const c_char;
 
         // SAFETY: This was sourced from the Playdate API, and we're providing it a valid ASCII,
         // null-terminated string.
         unsafe {
-            log_internal(c_str.as_ptr());
+            log_internal(string);
         }
 
         Ok(())

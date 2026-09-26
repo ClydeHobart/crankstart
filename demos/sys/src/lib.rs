@@ -120,7 +120,10 @@ impl SysGame {
     }
 
     fn build_callback<I: Debug>(title: &SmallTempString) -> Callback<I> {
-        let title: SmallTempString = title.clone();
+        let mut title: SmallTempString = title.clone();
+
+        // `title` is null-terminated, which we don't want when printing it below.
+        title.pop();
 
         Callback::from_closure(Box::new(move |input: I| {
             println!("{title} selected: {input:?}");
@@ -138,8 +141,6 @@ impl Game for SysGame {
     }
 
     fn update(&mut self) -> Result<ShouldUpdateDisplay> {
-        panic!();
-
         if (CrankstartAPI::get().system.get_button_state().pushed & PDButtons::kButtonA).0 != 0 {
             self.state = Some(
                 self.state
