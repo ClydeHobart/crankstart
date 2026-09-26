@@ -5,16 +5,16 @@
     // "version": "0.2.0",
     "configurations": [
         {
-            "name": "Debug Ex Sys On PlaydateSimulator",
+            "name": "Debug Sys On PlaydateSimulator",
             "type": "cppvsdbg",
             "request": "launch",
-            "cwd": "${workspaceFolder}\\examples\\sys",
-            "program": "${env:PLAYDATE_SDK_PATH}\\bin\\PlaydateSimulator.exe",
+            "cwd": "${workspaceFolder}/demos/sys",
+            "program": "${env:PLAYDATE_SDK_PATH}/bin/PlaydateSimulator.exe",
             "args": [
-                "${cwd}\\examples\\sys\\target\\sys.pdx"
+                "${workspaceFolder}/demos/sys/target/sys.pdx"
             ],
-            "symbolSearchPath": "${cwd}\\examples\\sys\\target\\debug",
-            "stopAtEntry": false
+            "symbolSearchPath": "${workspaceFolder}/demos/sys/target/debug",
+            "stopAtEntry": false,
         }
     ]
 }

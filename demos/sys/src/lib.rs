@@ -138,6 +138,8 @@ impl Game for SysGame {
     }
 
     fn update(&mut self) -> Result<ShouldUpdateDisplay> {
+        panic!();
+
         if (CrankstartAPI::get().system.get_button_state().pushed & PDButtons::kButtonA).0 != 0 {
             self.state = Some(
                 self.state

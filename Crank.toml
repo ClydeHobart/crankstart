@@ -1,11 +1,11 @@
-# [[target]]
-# name = "sys"
-#
-# [target.metadata]
-# name = "sys"
-# version = "0.1.0"
-# author = "ClydeHobart"
-# bundle_id = "dev.clydehobart.crankstart.sys"
+[[target]]
+name = "sys_2"
+
+[target.metadata]
+name = "sys_2"
+version = "0.1.0"
+author = "ClydeHobart"
+bundle_id = "dev.clydehobart.crankstart.sys"
 
 # [[target]]
 # name = "hello_world"
