@@ -1,6 +1,7 @@
 #![cfg_attr(not(any(test, doctest)), no_std)]
 #![cfg_attr(not(any(test, doctest)), feature(alloc_error_handler))]
 #![feature(core_intrinsics)]
+#![allow(unused_features)]
 #![allow(internal_features)]
 
 #[cfg(not(any(test, doctest)))]
@@ -60,18 +61,11 @@ impl CrankstartAPI {}
 
 impl_singleton!(CrankstartAPI);
 
-pub struct ShouldUpdateDisplay(bool);
-
-impl From<bool> for ShouldUpdateDisplay {
-    fn from(value: bool) -> Self {
-        Self(value)
-    }
-}
-
 pub trait Game: Singleton {
     fn new() -> Result<Self>;
 
-    fn update(&mut self) -> Result<ShouldUpdateDisplay>;
+    /// Mutably update the game state. Returns whether the display should update.
+    fn update(&mut self) -> Result<bool>;
 
     fn handle_event(&mut self, #[allow(unused)] event: PDSystemEvent, #[allow(unused)] arg: u32) {}
 }
@@ -112,11 +106,11 @@ extern "C" fn game_update<G: Game>(user_data: *mut c_void) -> i32 {
 
             0_i32
         },
-        |should_update_display| should_update_display.0 as i32,
+        |should_update_display| should_update_display as i32,
     )
 }
 
-fn game_update_internal<G: Game>(user_data: *mut c_void) -> Result<ShouldUpdateDisplay> {
+fn game_update_internal<G: Game>(user_data: *mut c_void) -> Result<bool> {
     let game_mut_ptr: *mut G = user_data.cast();
 
     ensure!(game_mut_ptr.is_aligned());

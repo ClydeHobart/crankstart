@@ -111,9 +111,3 @@ impl From<PDRect> for Rect<f32> {
         rect(r.x, r.y, r.width, r.height)
     }
 }
-
-impl Default for PDButtons {
-    fn default() -> Self {
-        Self(Default::default())
-    }
-}

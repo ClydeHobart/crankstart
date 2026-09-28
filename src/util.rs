@@ -1,7 +1,11 @@
 pub mod callback;
+pub mod enum_flags;
+pub mod enum_with_count;
+pub mod enum_with_count_and_strings;
 pub mod euclid;
 pub mod ffi;
 pub mod macros;
+pub mod mem;
 pub mod prelude;
 pub mod ptr;
 pub mod singleton;

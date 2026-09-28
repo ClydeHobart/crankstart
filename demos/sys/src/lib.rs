@@ -4,27 +4,28 @@ use {
     anyhow::Result,
     core::{cell::Ref, fmt::Debug, mem::transmute},
     crankstart::{
-        CrankstartAPI, Game, ShouldUpdateDisplay,
+        CrankstartAPI, Game,
         alloc::{boxed::Box, vec::Vec},
-        crankstart_game,
-        pd_api::PDButtons,
-        println,
-        sys::MenuItemPtr,
-        util::{callback::Callback, singleton::Singleton, string::SmallTempString},
+        crankstart_game, define_enum_with_count, println,
+        sys::{Button, MenuItemPtr},
+        util::{
+            callback::Callback, enum_with_count::EnumWithCount, singleton::Singleton,
+            string::SmallTempString,
+        },
         write0,
     },
 };
 
-#[allow(dead_code)]
-#[derive(Clone, Copy)]
-#[repr(u8)]
-enum SysGameState {
-    AddDefaultMenuItem,
-    AddCheckmarkMenuItem,
-    AddOptionsMenuItem,
+define_enum_with_count! {
+    #[repr(u8)]
+    #[allow(dead_code)]
+    #[derive(Clone, Copy)]
+    enum SysGameState {
+        AddDefaultMenuItem,
+        AddCheckmarkMenuItem,
+        AddOptionsMenuItem,
+    }
 }
-
-const SYS_GAME_STATE_COUNT: u8 = 3_u8;
 
 impl SysGameState {
     fn get_short_name(self) -> &'static str {
@@ -36,7 +37,7 @@ impl SysGameState {
     }
 
     fn next(self) -> Self {
-        unsafe { transmute::<u8, Self>((self as u8 + 1_u8) % SYS_GAME_STATE_COUNT) }
+        unsafe { transmute::<u8, Self>((self as u8 + 1_u8) % Self::COUNT as u8) }
     }
 }
 
@@ -140,8 +141,13 @@ impl Game for SysGame {
         Ok(Default::default())
     }
 
-    fn update(&mut self) -> Result<ShouldUpdateDisplay> {
-        if (CrankstartAPI::get().system.get_button_state().pushed & PDButtons::kButtonA).0 != 0 {
+    fn update(&mut self) -> Result<bool> {
+        if CrankstartAPI::get()
+            .system
+            .get_button_state()
+            .pushed
+            .get(Button::A)
+        {
             self.state = Some(
                 self.state
                     .map_or(SysGameState::AddDefaultMenuItem, SysGameState::next),
@@ -149,7 +155,7 @@ impl Game for SysGame {
             self.on_state_change();
         }
 
-        Ok(false.into())
+        Ok(false)
     }
 }
 

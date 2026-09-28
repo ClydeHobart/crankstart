@@ -1,46 +1,120 @@
 use {
+    self::menu_item::{
+        CheckboxMenuItemCallback, DefaultMenuItemCallback, MAX_MENU_ITEM_COUNT, MAX_OPTION_COUNT,
+        MenuItemKind, MenuItemPtr, MenuItemState, OptionsMenuItemCallback,
+    },
     crate::{
-        CrankstartAPI, Game, System, define_crankstart_api, ensure, eprintln,
+        CrankstartAPI, Game, System, define_crankstart_api, define_enum_flags,
+        define_enum_with_count, define_enum_with_count_and_strings, ensure, eprintln,
         pd_api::{
             __va_list_tag, LCDBitmap, PDButtonCallbackFunction, PDButtons, PDCallbackFunction,
             PDDateTime, PDLanguage, PDMenuItem, PDMenuItemCallbackFunction, PDPeripherals,
             ctypes::{c_char, c_void},
             playdate_sys,
         },
-        q,
+        q, str_lit,
         util::{
-            callback::Callback,
+            enum_flags::EnumFlags,
+            enum_with_count::EnumWithCount,
             euclid::IPxPoint2D,
-            ptr::{PtrInner, PtrTrait, UntypedPtr},
+            ptr::{PtrInner, PtrTrait},
             singleton::Singleton,
-            string::{ArrayStringTrait, LongTempString, TempString},
+            string::{ArrayStringTrait, LongTempString, ShortTempString, TempString},
         },
     },
-    anyhow::{Error, Result},
+    anyhow::{Error, Result, anyhow},
     arrayvec::ArrayVec,
     core::{
         cell::{Ref, RefCell, RefMut},
         convert::TryFrom,
+        mem::transmute,
         num::TryFromIntError,
         ptr::{NonNull, null_mut},
         result::Result as CoreResult,
         time::Duration as CoreDuration,
     },
     euclid::default::Vector3D,
+    static_assertions::const_assert_eq,
 };
 
-pub const MAX_OPTION_COUNT: usize = 32_usize;
-pub const MAX_MENU_ITEM_COUNT: usize = 32_usize;
+pub mod menu_item;
 
-pub type DefaultMenuItemCallback = Callback;
-pub type CheckboxMenuItemCallback = Callback<bool>;
-pub type OptionsMenuItemCallback = Callback<usize>;
+macro_rules! define_button {
+    {
+        #[repr($integer:ident)]
+        $(#[$attr:meta])*
+        $pub:vis enum $enum:ident {
+            $( $enum_variant:ident = $pd_buttons_constant:ident),* $(,)?
+        }
+    } => {
+        define_enum_with_count_and_strings! {
+            #[repr($integer)]
+            $( #[$attr] )*
+            $pub enum $enum {
+                $( $enum_variant, )*
+            }
+        }
+
+        $(
+            const_assert_eq!(
+                1_u32 << $enum::$enum_variant as usize, PDButtons::$pd_buttons_constant.0);
+        )*
+    };
+}
+
+define_button! {
+    #[repr(u8)]
+    #[derive(Clone, Copy, PartialEq)]
+    pub enum Button {
+        Left = kButtonLeft,
+        Right = kButtonRight,
+        Up = kButtonUp,
+        Down = kButtonDown,
+        B = kButtonB,
+        A = kButtonA,
+    }
+}
+
+define_enum_flags! {
+    #[derive(Clone, Copy, Default, PartialEq)]
+    pub struct Buttons = Button in u8;
+}
+
+impl From<PDButtons> for Buttons {
+    fn from(value: PDButtons) -> Self {
+        // There are just 6 values here, and their bit positions are checked at compile time within
+        // `define_button`.
+        assert!(value.0 <= <Buttons as EnumFlags>::InnerInner::MAX as u32);
+
+        Self(<Buttons as EnumFlags>::Inner::new([
+            value.0 as <Buttons as EnumFlags>::InnerInner
+        ]))
+    }
+}
 
 #[derive(Default, Clone, Copy)]
 pub struct ButtonState {
-    pub current: PDButtons,
-    pub pushed: PDButtons,
-    pub released: PDButtons,
+    pub current: Buttons,
+    pub pushed: Buttons,
+    pub released: Buttons,
+}
+
+define_enum_with_count! {
+    #[repr(u8)]
+    #[derive(Clone, Copy, PartialEq)]
+    pub enum Peripheral {
+        Accelerometer,
+    }
+}
+
+const_assert_eq!(
+    1_u32 << Peripheral::Accelerometer as u32,
+    PDPeripherals::kAccelerometer as u32
+);
+
+define_enum_flags! {
+    #[derive(Clone, Copy, Default, PartialEq)]
+    pub struct Peripherals = Peripheral in u8;
 }
 
 #[derive(Default, Clone, Copy)]
@@ -75,6 +149,7 @@ struct MenuItemArrayVec(ArrayVec<MenuItemPtr, MAX_MENU_ITEM_COUNT>);
 impl System for MenuItemArrayVec {}
 
 define_crankstart_api! {
+    /// `crankstart` wrapper around C's `playdate_sys`
     pub struct SysAPI => playdate_sys {
         ; // No sub-API fields
         realloc: unsafe extern "C" fn(ptr: *mut c_void, size: usize) -> *mut c_void,
@@ -181,30 +256,82 @@ impl SysAPI {
         }
     }
 
+    /// Calls the log function.
+    ///
+    /// This accepts a `&str` to print. To format a string and then print it, see
+    /// [`crankstart::println!`].
+    ///
+    /// Silently consumes any error encountered. To recover errors instead, see
+    /// [Self::try_log_to_console].
+    ///
+    /// | Language | Equivalent function                               |
+    /// | :------- | :------------------------------------------------ |
+    /// | Rust     | `CrankstartAPI::get().system.log_to_console(...)` |
+    /// | C        | `pd->system->logToConsole(...)`                   |
+    /// | Lua      | `print(...)`                                      |
     pub fn log_to_console(&self, string: &str) {
         self.try_log_to_console(string).ok();
     }
 
+    /// Calls the log function.
+    ///
+    /// Returns any error encountered. To silently consume errors instead, or for language
+    /// translations, see [Self::log_to_console].
     pub fn try_log_to_console(&self, string: &str) -> Result<()> {
         self.try_log_internal(string, CrankstartAPI::get().system.logToConsole)
     }
 
+    /// Calls the log function, outputting an error in red to the console, then pauses execution.
+    ///
+    /// This accepts a `&str` to print. To format a string and then print it, see
+    /// [`crankstart::eprintln!`].
+    ///
+    /// Silently consumes any error encountered. To recover errors instead, see [Self::try_error].
+    ///
+    /// | Language | Equivalent function                               |
+    /// | :------- | :------------------------------------------------ |
+    /// | Rust     | `CrankstartAPI::get().system.error(...)`          |
+    /// | C        | `pd->system->error(...)`                          |
     pub fn error(&self, string: &str) {
         self.try_error(string).ok();
     }
 
+    /// Calls the log function, outputting an error in red to the console, then pauses execution.
+    ///
+    /// Returns any error encountered. To silently consume errors instead, or for language
+    /// translations, see [Self::error].
     pub fn try_error(&self, string: &str) -> Result<()> {
         self.try_log_internal(string, CrankstartAPI::get().system.error)
     }
 
+    /// Returns the current language of the system.
+    ///
+    /// | Language | Equivalent function                          |
+    /// | :------- | :------------------------------------------- |
+    /// | Rust     | `CrankstartAPI::get().system.get_language()` |
+    /// | C        | `pd->system->getLanguage()`                  |
     pub fn get_language(&self) -> PDLanguage {
         unsafe { (self.getLanguage)() }
     }
 
+    /// Returns the number of milliseconds since ​some arbitrary point in time. This should present a
+    /// consistent timebase while a game is running, but the counter will be disabled when the
+    /// device is sleeping.
+    ///
+    /// | Language | Equivalent function                                           |
+    /// | :------- | :------------------------------------------------------------ |
+    /// | Rust     | `CrankstartAPI::get().system.get_current_time_milliseconds()` |
+    /// | C        | `pd->system->getCurrentTimeMilliseconds()`                    |
     pub fn get_current_time_milliseconds(&self) -> u32 {
         unsafe { (self.getCurrentTimeMilliseconds)() }
     }
 
+    /// Returns the [`Duration`] elapsed since midnight (hour 0), January 1, 2000.
+    ///
+    /// | Language | Equivalent function                                      |
+    /// | :------- | :------------------------------------------------------- |
+    /// | Rust     | `CrankstartAPI::get().system.get_duration_since_epoch()` |
+    /// | C        | `pd->system->getSecondsSinceEpoch(...)`                  |
     pub fn get_duration_since_epoch(&self) -> Duration {
         let mut milliseconds: u32 = 0_u32;
 
@@ -216,32 +343,65 @@ impl SysAPI {
         }
     }
 
+    /// Calculates the current frames per second and draws that value at `point`.
+    ///
+    /// | Language | Equivalent function                           |
+    /// | :------- | :-------------------------------------------- |
+    /// | Rust     | `CrankstartAPI::get().system.draw_fps(point)` |
+    /// | C        | `pd->system->drawFPS(point.x, point.y)`       |
     pub fn draw_fps(&self, point: IPxPoint2D) {
         unsafe {
             (self.drawFPS)(point.x, point.y);
         }
     }
 
+    /// Returns the state of the buttons. Field `current` is a typed bitmask indicating which
+    /// buttons are currently down. Fields `pushed` and `released` reflect which buttons were pushed
+    /// or released over the previous update cycle--at the nominal frame rate of 50 ms, fast button
+    /// presses can be missed if you just poll the instantaneous state.
+    ///
+    /// | Language | Equivalent function                              |
+    /// | :------- | :----------------------------------------------- |
+    /// | Rust     | `CrankstartAPI::get().system.get_button_state()` |
+    /// | C        | `pd->system->getButtonState(...)`                |
     pub fn get_button_state(&self) -> ButtonState {
-        let mut button_state: ButtonState = Default::default();
+        let mut current: PDButtons = PDButtons(0_u32);
+        let mut pushed: PDButtons = PDButtons(0_u32);
+        let mut released: PDButtons = PDButtons(0_u32);
 
         unsafe {
-            (self.getButtonState)(
-                &mut button_state.current,
-                &mut button_state.pushed,
-                &mut button_state.released,
-            );
+            (self.getButtonState)(&mut current, &mut pushed, &mut released);
         }
 
-        button_state
+        ButtonState {
+            current: current.into(),
+            pushed: pushed.into(),
+            released: released.into(),
+        }
     }
 
-    pub fn set_peripherals_enabled(&self, mask: PDPeripherals) {
+    /// By default, the accelerometer is disabled to save (a small amount of) power. To use a
+    /// peripheral, it must first be enabled via this function. Accelerometer data is not available
+    /// until the next update cycle after it’s enabled.
+    ///
+    /// | Language | Equivalent function                                        |
+    /// | :------- | :--------------------------------------------------------- |
+    /// | Rust     | `CrankstartAPI::get().system.set_peripherals_enabled(...)` |
+    /// | C        | `pd->system->setPeripheralsEnabled(...)`                   |
+    pub fn set_peripherals_enabled(&self, mask: Peripherals) {
         unsafe {
+            let mask: PDPeripherals = transmute::<u32, PDPeripherals>(mask.into_inner() as u32);
+
             (self.setPeripheralsEnabled)(mask);
         }
     }
 
+    /// Returns the last-read accelerometer data.
+    ///
+    /// | Language | Equivalent function                               |
+    /// | :------- | :------------------------------------------------ |
+    /// | Rust     | `CrankstartAPI::get().system.get_accelerometer()` |
+    /// | C        | `pd->system->getAccelerometer(...)`               |
     pub fn get_accelerometer(&self) -> Vector3D<f32> {
         let mut vector_3d: Vector3D<f32> = Vector3D::zero();
 
@@ -252,33 +412,94 @@ impl SysAPI {
         vector_3d
     }
 
+    /// Returns the angle change of the crank since the last time this function was called. Negative
+    /// values are anti-clockwise.
+    ///
+    /// | Language | Equivalent function                              |
+    /// | :------- | :----------------------------------------------- |
+    /// | Rust     | `CrankstartAPI::get().system.get_crank_change()` |
+    /// | C        | `pd->system->getCrankChange()`                   |
     pub fn get_crank_change(&self) -> f32 {
         unsafe { (self.getCrankChange)() }
     }
 
+    /// Returns the current position of the crank, in the range 0-360. Zero is pointing up, and the
+    /// value increases as the crank moves clockwise, as viewed from the right side of the device.
+    ///
+    /// | Language | Equivalent function                             |
+    /// | :------- | :---------------------------------------------- |
+    /// | Rust     | `CrankstartAPI::get().system.get_crank_angle()` |
+    /// | C        | `pd->system->getCrankAngle()`                   |
     pub fn get_crank_angle(&self) -> f32 {
         unsafe { (self.getCrankAngle)() }
     }
 
+    /// Returns whether or not the crank is folded into the unit.
+    ///
+    /// | Language | Equivalent function                             |
+    /// | :------- | :---------------------------------------------- |
+    /// | Rust     | `CrankstartAPI::get().system.is_crank_docked()` |
+    /// | C        | `pd->system->isCrankDocked()`                   |
     pub fn is_crank_docked(&self) -> bool {
         unsafe { (self.isCrankDocked)() != 0_i32 }
     }
 
+    /// Playdate has built-in sound effects for various system events, such as the menu opening or
+    /// closing, USB cable plugged or unplugged, and the crank docked or undocked. Since games can
+    /// receive notification of the crank docking and undocking, and may incorporate this into the
+    /// game, we’ve provided a function for muting the default sounds for these events.
+    ///
+    /// The function returns the previous value for this setting.
+    ///
+    /// | Language | Equivalent function                                          |
+    /// | :------- | :----------------------------------------------------------- |
+    /// | Rust     | `CrankstartAPI::get().system.set_crank_sounds_disabled(...)` |
+    /// | C        | `pd->system->setCrankSoundsDisabled(...)`                    |
     pub fn set_crank_sounds_disabled(&self, disable: bool) -> bool {
         unsafe { (self.setCrankSoundsDisabled)(disable as i32) != 0_i32 }
     }
 
+    /// Returns whether the global "flipped" system setting is set.
+    ///
+    /// | Language | Equivalent function                         |
+    /// | :------- | :------------------------------------------ |
+    /// | Rust     | `CrankstartAPI::get().system.get_flipped()` |
+    /// | C        | `pd->system->getFlipped()`                  |
     pub fn get_flipped(&self) -> bool {
         unsafe { (self.getFlipped)() != 0_i32 }
     }
 
+    /// Disables or enables the 3 minute auto lock feature. When called, the timer is reset to 3
+    /// minutes.
+    ///
+    /// | Language | Equivalent function                                    |
+    /// | :------- | :----------------------------------------------------- |
+    /// | Rust     | `CrankstartAPI::get().system.set_auto_lock_disabled()` |
+    /// | C        | `pd->system->setAutoLockDisabled()`                    |
     pub fn set_auto_lock_disabled(&self, disable: bool) {
         unsafe {
             (self.setAutoLockDisabled)(disable as i32);
         }
     }
 
-    /// Adds a option to the menu. The callback is called when the option is selected.
+    /// Adds a new menu item to the system menu.
+    ///
+    /// * Parameter `title` will be the title displayed by the menu item.
+    /// * When invoked by the user, this menu item will:
+    ///     1. Invoke parameter `callback`.
+    ///     2. Hide the system menu.
+    ///     3. Unpause your game and call [`Game::handle_event`] eventHandler() with the
+    ///        [`PDSystemEvent::kEventResume`] `event`.
+    ///
+    /// Your game can then present an options interface to the player, or take other action, in
+    /// whatever manner you choose.
+    ///
+    /// | Language | Equivalent function                                      |
+    /// | :------- | :------------------------------------------------------- |
+    /// | Rust     | `CrankstartAPI::get().system.add_default_menu_item(...)` |
+    /// | C        | `pd->system->addMenuItem(...)`                           |
+    ///
+    /// [`PDSystemEvent::kEventResume`]: crate::pd_api::PDSystemEvent#variant.kEventResume
     pub fn add_default_menu_item(
         &self,
         title: &str,
@@ -287,7 +508,7 @@ impl SysAPI {
         ensure!(!self.menu_items.borrow().0.is_full());
         ensure!(title.is_ascii());
 
-        let title: TempString = TempString::clone_null_terminated(title);
+        let title: TempString = TempString::clone_null_terminated_truncating(title);
         let title: *const c_char = title.as_ptr() as *const c_char;
         let pd_menu_item: *mut PDMenuItem =
             unsafe { (self.addMenuItem)(title, Some(Self::menu_item_callback), null_mut()) };
@@ -302,10 +523,17 @@ impl SysAPI {
         Ok(menu_item)
     }
 
-    /// Adds a option to the menu that has a checkbox. The initial_checked_state is the initial
-    /// state of the checkbox. Callback will only be called when the menu is closed, not when the
-    /// option is toggled. Use `System::get_menu_item_value` to get the state of the checkbox when
-    /// the callback is called.
+    /// Adds a new menu item that can be checked or unchecked by the player.
+    ///
+    /// * Parameter `title` will be the title displayed by the menu item.
+    /// * Parameter `is_checked` is whether the menu item is checked initially.
+    /// * If this menu item is interacted with while the system menu is open, parameter `callback`
+    ///   will be called when the menu is closed.
+    ///
+    /// | Language | Equivalent function                                        |
+    /// | :------- | :--------------------------------------------------------- |
+    /// | Rust     | `CrankstartAPI::get().system.add_checkmark_menu_item(...)` |
+    /// | C        | `pd->system->addCheckmarkMenuItem(...)`                    |
     pub fn add_checkmark_menu_item(
         &self,
         title: &str,
@@ -315,7 +543,7 @@ impl SysAPI {
         ensure!(!self.menu_items.borrow().0.is_full());
         ensure!(title.is_ascii());
 
-        let title: TempString = TempString::clone_null_terminated(title);
+        let title: TempString = TempString::clone_null_terminated_truncating(title);
         let title: *const c_char = title.as_ptr() as *const c_char;
         let pd_menu_item: *mut PDMenuItem = unsafe {
             (self.addCheckmarkMenuItem)(
@@ -336,10 +564,19 @@ impl SysAPI {
         Ok(menu_item)
     }
 
-    /// Adds a option to the menu that has multiple values that can be cycled through. The initial
-    /// value is the first element in `options`. Callback will only be called when the menu is
-    /// closed, not when the option is toggled. Use `System::get_menu_item_value` to get the index
-    /// of the options list when the callback is called, which can be used to lookup the value.
+    /// Adds a new menu item that allows the player to cycle through a set of options.
+    ///
+    /// * Parameter `title` will be the title displayed by the menu item.
+    /// * Parameter `options` should be an array of strings representing the states this menu item
+    ///   can cycle through. Due to limited horizontal space, the option strings and title should be
+    ///   kept short for this type of menu item.
+    /// * If this menu item is interacted with while the system menu is open, parameter `callback`
+    ///   will be called when the menu is closed.
+    ///
+    /// | Language | Equivalent function                                      |
+    /// | :------- | :------------------------------------------------------- |
+    /// | Rust     | `CrankstartAPI::get().system.add_options_menu_item(...)` |
+    /// | C        | `pd->system->addOptionsMenuItem(...)`                    |
     pub fn add_options_menu_item(
         &self,
         title: &str,
@@ -350,7 +587,7 @@ impl SysAPI {
         ensure!(title.is_ascii());
         ensure!(options.len() <= MAX_OPTION_COUNT);
 
-        let title: TempString = TempString::clone_null_terminated(title);
+        let title: TempString = TempString::clone_null_terminated_truncating(title);
         let title: *const c_char = title.as_ptr() as *const c_char;
 
         type OptionArrayVec = ArrayVec<TempString, MAX_OPTION_COUNT>;
@@ -361,7 +598,7 @@ impl SysAPI {
             .map(|option| {
                 ensure!(option.is_ascii());
 
-                Ok(TempString::clone_null_terminated(option))
+                Ok(TempString::clone_null_terminated_truncating(option))
             })
             .collect::<Result<OptionArrayVec, Error>>()?;
 
@@ -394,6 +631,12 @@ impl SysAPI {
         Ok(menu_item)
     }
 
+    /// Removes all custom menu items from the system menu.
+    ///
+    /// | Language | Equivalent function                                   |
+    /// | :------- | :---------------------------------------------------- |
+    /// | Rust     | `CrankstartAPI::get().system.remove_all_menu_items()` |
+    /// | C        | `pd->system->removeAllMenuItems()`                    |
     pub fn remove_all_menu_items(&self) {
         unsafe {
             ((self.removeAllMenuItems)());
@@ -406,39 +649,76 @@ impl SysAPI {
         }
     }
 
+    /// Removes the menu item from the system menu.
+    ///
+    /// | Language | Equivalent function                              |
+    /// | :------- | :----------------------------------------------- |
+    /// | Rust     | `CrankstartAPI::get().system.remove_menu_item()` |
+    /// | C        | `pd->system->removeMenuItem()`                   |
     pub fn remove_menu_item(&self, menu_item: MenuItemPtr) {
         self.menu_items
             .borrow_mut()
             .0
             .retain(|stored_menu_item| stored_menu_item != &menu_item);
 
-        // Explicitly drops item. The actual calling of the removeMenuItem (via
+        // Explicitly drops item. The actual calling of the `removeMenuItem` (via
         // `remove_menu_item_internal`) is done in the drop impl to avoid calling it multiple times,
         // even though that's been experimentally shown to be safe.
         drop(menu_item);
     }
 
-    /// Returns the state of a given menu item. The meaning depends on the type of menu item. If it
-    /// is the checkbox, the int represents the boolean checked state. If it's a option the int
-    /// represents the index of the option array.
-    pub fn get_menu_item_value(&self, menu_item: &MenuItemPtr) -> usize {
-        unsafe { (self.getMenuItemValue)(menu_item.get_pd_ptr().as_ptr()) as usize }
+    /// Gets the integer value of the menu item.
+    ///
+    /// * For default menu items, the value is 0.
+    /// * For checkmark menu items, 1 means checked, 0 unchecked.
+    /// * For option menu items, the value indicates the array index of the currently selected
+    ///   option.
+    ///
+    /// Returns an error if the menu item is currently borrowed mutably.
+    ///
+    /// | Language | Equivalent function                                    |
+    /// | :------- | :----------------------------------------------------- |
+    /// | Rust     | `CrankstartAPI::get().system.get_menu_item_value(...)` |
+    /// | C        | `pd->system->getMenuItemValue(...)`                    |
+    pub fn get_menu_item_value(&self, menu_item: &MenuItemPtr) -> Result<usize> {
+        let menu_item_state: Ref<MenuItemState> = q!(menu_item.try_borrow_state().ok_or(()));
+
+        const_assert_eq!(MenuItemKind::COUNT, 3_usize);
+
+        Ok(match menu_item_state.get_kind() {
+            // getMenuItemValue apparently can return garbage values for default menu items? This
+            // needs to be verified.
+            MenuItemKind::Default => 0_usize,
+            _ => unsafe { (self.getMenuItemValue)(menu_item.get_pd_ptr().as_ptr()) as usize },
+        })
     }
 
-    /// Set the value of a given menu item. The meaning depends on the type of menu item. Picking
-    /// the right value is left up to the caller, but is protected by the `MenuItemKind` of the
-    /// `menu_item` passed
+    /// Sets the integer value of the menu item.
+    ///
+    /// * For checkmark menu items, 1 means checked, 0 unchecked.
+    /// * For option menu items, the value indicates the array index of the currently selected
+    ///   option.
+    ///
+    /// Returns an error if:
+    /// * The menu item is currently borrowed mutably.
+    /// * The menu item is a default menu item.
+    /// * An invalid value was supplied.
+    ///
+    /// | Language | Equivalent function                                    |
+    /// | :------- | :----------------------------------------------------- |
+    /// | Rust     | `CrankstartAPI::get().system.set_menu_item_value(...)` |
+    /// | C        | `pd->system->setMenuItemValue(...)`                    |
     pub fn set_menu_item_value(&self, menu_item: &MenuItemPtr, value: usize) -> Result<()> {
-        {
-            let menu_item_state: Ref<MenuItemState> = q!(menu_item.try_borrow_state().ok_or(()));
-            let is_value_valid_for_checkmark: bool =
-                !menu_item_state.is_checkmark() || value <= 1_usize;
+        let menu_item_state: Ref<MenuItemState> = q!(menu_item.try_borrow_state().ok_or(()));
 
-            let is_value_valid_for_options: bool = menu_item_state
-                .try_get_option_count()
-                .map_or(true, |option_count| value < option_count);
-            ensure!(is_value_valid_for_checkmark);
-            ensure!(is_value_valid_for_options);
+        match menu_item_state.get_kind() {
+            MenuItemKind::Default => {
+                Err(anyhow!(str_lit!("Default menu items can't have a value")))?
+            }
+            MenuItemKind::Checkmark => ensure!(value <= 1_usize),
+            MenuItemKind::Options => {
+                ensure!(value < menu_item_state.try_get_option_count().unwrap())
+            }
         }
 
         unsafe {
@@ -448,11 +728,32 @@ impl SysAPI {
         Ok(())
     }
 
-    /// Set the title of a given menu item
+    /// Sets the display title of the menu item.
+    ///
+    /// Returns an error if the
+    ///
+    /// | Language | Equivalent function                                    |
+    /// | :------- | :----------------------------------------------------- |
+    /// | Rust     | `CrankstartAPI::get().system.set_menu_item_title(...)` |
+    /// | C        | `pd->system->setMenuItemTitle(...)`                    |
+    pub fn get_menu_item_title(&self, menu_item: &MenuItemPtr) -> ShortTempString {
+        let title: *const c_char =
+            unsafe { (self.getMenuItemTitle)(menu_item.get_pd_ptr().as_ptr()) };
+
+        // Menu item titles are guaranteed to be valid ASCII, which is a subset of UTF-8.
+        ShortTempString::try_clone_c_str_truncating(title).unwrap()
+    }
+
+    /// Sets the display title of the menu item.
+    ///
+    /// | Language | Equivalent function                                    |
+    /// | :------- | :----------------------------------------------------- |
+    /// | Rust     | `CrankstartAPI::get().system.set_menu_item_title(...)` |
+    /// | C        | `pd->system->setMenuItemTitle(...)`                    |
     pub fn set_menu_item_title(&self, menu_item: &MenuItemPtr, title: &str) -> Result<(), Error> {
         ensure!(title.is_ascii());
 
-        let title: TempString = TempString::clone_null_terminated(title);
+        let title: TempString = TempString::clone_null_terminated_truncating(title);
         let title: *const c_char = title.as_ptr() as *const c_char;
 
         unsafe {
@@ -462,7 +763,13 @@ impl SysAPI {
         Ok(())
     }
 
-    pub fn get_reduced_flashing(&self) -> bool {
+    /// Returns whether the global "reduce flashing" system setting is set.
+    ///
+    /// | Language | Equivalent function                                 |
+    /// | :------- | :-------------------------------------------------- |
+    /// | Rust     | `CrankstartAPI::get().system.get_reduce_flashing()` |
+    /// | C        | `pd->system->getReduceFlashing()`                   |
+    pub fn get_reduce_flashing(&self) -> bool {
         unsafe { (self.getReduceFlashing)() != 0_i32 }
     }
 
@@ -530,7 +837,7 @@ impl SysAPI {
     ) -> Result<()> {
         ensure!(string.is_ascii());
 
-        let string: LongTempString = LongTempString::clone_null_terminated(string);
+        let string: LongTempString = LongTempString::clone_null_terminated_truncating(string);
         let string: *const c_char = string.as_ptr() as *const c_char;
 
         // SAFETY: This was sourced from the Playdate API, and we're providing it a valid ASCII,
@@ -589,127 +896,5 @@ impl SysAPI {
     #[cfg(not(any(test, doctest)))]
     pub(crate) fn realloc(&self, ptr: *mut u8, size: usize) -> *mut u8 {
         unsafe { (self.realloc)(ptr as *mut c_void, size) as *mut u8 }
-    }
-}
-
-enum MenuItemKind {
-    Default {
-        was_removed: bool,
-        callback: DefaultMenuItemCallback,
-    },
-    Checkmark {
-        was_removed: bool,
-        callback: CheckboxMenuItemCallback,
-    },
-    Options {
-        was_removed: bool,
-        option_count: u8,
-        callback: OptionsMenuItemCallback,
-    },
-}
-
-pub struct MenuItemState(MenuItemKind);
-
-impl MenuItemState {
-    pub fn is_default(&self) -> bool {
-        matches!(self.0, MenuItemKind::Default { .. })
-    }
-
-    pub fn is_checkmark(&self) -> bool {
-        matches!(self.0, MenuItemKind::Checkmark { .. })
-    }
-
-    pub fn is_options(&self) -> bool {
-        matches!(self.0, MenuItemKind::Options { .. })
-    }
-
-    pub fn try_get_option_count(&self) -> Option<usize> {
-        match self.0 {
-            MenuItemKind::Options { option_count, .. } => Some(option_count as usize),
-            _ => None,
-        }
-    }
-
-    fn new_default(callback: DefaultMenuItemCallback) -> Self {
-        Self(MenuItemKind::Default {
-            was_removed: false,
-            callback,
-        })
-    }
-
-    fn new_checkmark(callback: CheckboxMenuItemCallback) -> Self {
-        Self(MenuItemKind::Checkmark {
-            was_removed: false,
-            callback,
-        })
-    }
-
-    fn try_new_options(option_count: usize, callback: OptionsMenuItemCallback) -> Result<Self> {
-        ensure!(option_count < MAX_OPTION_COUNT);
-
-        Ok(Self(MenuItemKind::Options {
-            was_removed: false,
-            option_count: option_count as u8,
-            callback,
-        }))
-    }
-
-    fn invoke_callback(&self, menu_item: &MenuItemPtr) {
-        let crankstart_api: Ref<CrankstartAPI> = CrankstartAPI::get();
-
-        match &self.0 {
-            MenuItemKind::Default { callback, .. } => {
-                callback.invoke(());
-            }
-            MenuItemKind::Checkmark { callback, .. } => {
-                callback.invoke(crankstart_api.system.get_menu_item_value(menu_item) != 0_usize);
-            }
-            MenuItemKind::Options { callback, .. } => {
-                callback.invoke(crankstart_api.system.get_menu_item_value(menu_item))
-            }
-        }
-    }
-
-    fn was_removed(&self) -> bool {
-        *match &self.0 {
-            MenuItemKind::Default { was_removed, .. } => was_removed,
-            MenuItemKind::Checkmark { was_removed, .. } => was_removed,
-            MenuItemKind::Options { was_removed, .. } => was_removed,
-        }
-    }
-
-    fn mark_as_removed(&mut self) {
-        *match &mut self.0 {
-            MenuItemKind::Default { was_removed, .. } => was_removed,
-            MenuItemKind::Checkmark { was_removed, .. } => was_removed,
-            MenuItemKind::Options { was_removed, .. } => was_removed,
-        } = true;
-    }
-}
-
-#[derive(Clone, PartialEq)]
-pub struct MenuItemPtr(UntypedPtr);
-
-impl From<UntypedPtr> for MenuItemPtr {
-    fn from(value: UntypedPtr) -> Self {
-        Self(value)
-    }
-}
-
-impl PtrTrait for MenuItemPtr {
-    type PDType = PDMenuItem;
-
-    type State = MenuItemState;
-
-    fn get_untyped_ptr(&self) -> &UntypedPtr {
-        &self.0
-    }
-
-    fn remove_pd_ptr(pd_ptr: NonNull<Self::PDType>, state: &Self::State) {
-        if !state.was_removed() {
-            CrankstartAPI::get()
-                .system
-                .remove_menu_item_internal(pd_ptr);
-        }
     }
 }
