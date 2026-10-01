@@ -47,12 +47,24 @@ where
         self.get_untyped_ptr().try_get_ptr_inner().unwrap()
     }
 
+    fn get_strong_count(&self) -> usize {
+        self.get_untyped_ptr().get_strong_count()
+    }
+
     fn try_borrow_state<'s>(&'s self) -> Option<Ref<'s, Self::State>> {
         self.get_untyped_ptr().try_borrow_state::<Self>()
     }
 
+    fn borrow_state<'s>(&'s self) -> Ref<'s, Self::State> {
+        self.try_borrow_state().unwrap()
+    }
+
     fn try_borrow_state_mut<'s>(&'s self) -> Option<RefMut<'s, Self::State>> {
         self.get_untyped_ptr().try_borrow_state_mut::<Self>()
+    }
+
+    fn borrow_state_mut<'s>(&'s self) -> RefMut<'s, Self::State> {
+        self.try_borrow_state_mut().unwrap()
     }
 
     fn remove_pd_ptr(pd_ptr: NonNull<Self::PDType>, state: &Self::State);
@@ -108,6 +120,10 @@ impl UntypedPtr {
         PtrManager::handle_new_ptr(&ptr);
 
         ptr
+    }
+
+    pub(crate) fn get_strong_count(&self) -> usize {
+        Rc::strong_count(&self.0)
     }
 
     fn try_get_ptr_inner<P: PtrTrait>(&self) -> Option<&PtrInner<P>> {

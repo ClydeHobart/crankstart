@@ -1,6 +1,6 @@
 use {
     self::menu_item::{
-        CheckboxMenuItemCallback, DefaultMenuItemCallback, MAX_MENU_ITEM_COUNT, MAX_OPTION_COUNT,
+        CheckmarkMenuItemCallback, DefaultMenuItemCallback, MAX_MENU_ITEM_COUNT, MAX_OPTION_COUNT,
         MenuItemKind, MenuItemPtr, MenuItemState, OptionsMenuItemCallback,
     },
     crate::{
@@ -64,6 +64,7 @@ macro_rules! define_button {
 
 define_button! {
     #[repr(u8)]
+    /// A parallel definition of [`PDButtons`] for use in the [`Buttons`] typed enum flag set.
     #[derive(Clone, Copy, PartialEq)]
     pub enum Button {
         Left = kButtonLeft,
@@ -76,6 +77,7 @@ define_button! {
 }
 
 define_enum_flags! {
+    /// A typed enum flag set for [`Button`].
     #[derive(Clone, Copy, Default, PartialEq)]
     pub struct Buttons = Button in u8;
 }
@@ -94,13 +96,20 @@ impl From<PDButtons> for Buttons {
 
 #[derive(Default, Clone, Copy)]
 pub struct ButtonState {
+    /// Which buttons are currently down.
     pub current: Buttons,
+
+    /// Which buttons were pushed over the previous update cycle.
     pub pushed: Buttons,
+
+    /// Which buttons were released over the previous update cycle.
     pub released: Buttons,
 }
 
 define_enum_with_count! {
     #[repr(u8)]
+    /// A parallel definition of [`PDPeripherals`] for use in the [`Peripherals`] typed enum flag
+    /// set.
     #[derive(Clone, Copy, PartialEq)]
     pub enum Peripheral {
         Accelerometer,
@@ -113,10 +122,12 @@ const_assert_eq!(
 );
 
 define_enum_flags! {
+    /// A typed enum flag set for [`Peripheral`].
     #[derive(Clone, Copy, Default, PartialEq)]
     pub struct Peripherals = Peripheral in u8;
 }
 
+/// A tuple of seconds and sub-second milliseconds, capable of expressing at most ~136.16 years.
 #[derive(Default, Clone, Copy)]
 pub struct Duration {
     pub seconds: u32,
@@ -538,7 +549,7 @@ impl SysAPI {
         &self,
         title: &str,
         is_checked: bool,
-        callback: CheckboxMenuItemCallback,
+        callback: CheckmarkMenuItemCallback,
     ) -> Result<MenuItemPtr> {
         ensure!(!self.menu_items.borrow().0.is_full());
         ensure!(title.is_ascii());
@@ -655,7 +666,13 @@ impl SysAPI {
     /// | :------- | :----------------------------------------------- |
     /// | Rust     | `CrankstartAPI::get().system.remove_menu_item()` |
     /// | C        | `pd->system->removeMenuItem()`                   |
-    pub fn remove_menu_item(&self, menu_item: MenuItemPtr) {
+    pub fn remove_menu_item(&self, menu_item: MenuItemPtr) -> Result<()> {
+        // One reference for parameter `menu_item`, one reference for what's stored in
+        // self.menu_items, and one reference for what's stored in `CrankstartAPI::ptr_manager`.
+        ensure!(menu_item.get_strong_count() == 3_usize);
+
+        Self::try_get_borrowable_and_not_removed_menu_item(&menu_item)?;
+
         self.menu_items
             .borrow_mut()
             .0
@@ -665,6 +682,8 @@ impl SysAPI {
         // `remove_menu_item_internal`) is done in the drop impl to avoid calling it multiple times,
         // even though that's been experimentally shown to be safe.
         drop(menu_item);
+
+        Ok(())
     }
 
     /// Gets the integer value of the menu item.
@@ -681,7 +700,8 @@ impl SysAPI {
     /// | Rust     | `CrankstartAPI::get().system.get_menu_item_value(...)` |
     /// | C        | `pd->system->getMenuItemValue(...)`                    |
     pub fn get_menu_item_value(&self, menu_item: &MenuItemPtr) -> Result<usize> {
-        let menu_item_state: Ref<MenuItemState> = q!(menu_item.try_borrow_state().ok_or(()));
+        let menu_item_state: Ref<MenuItemState> =
+            Self::try_get_borrowable_and_not_removed_menu_item(menu_item)?;
 
         const_assert_eq!(MenuItemKind::COUNT, 3_usize);
 
@@ -709,7 +729,8 @@ impl SysAPI {
     /// | Rust     | `CrankstartAPI::get().system.set_menu_item_value(...)` |
     /// | C        | `pd->system->setMenuItemValue(...)`                    |
     pub fn set_menu_item_value(&self, menu_item: &MenuItemPtr, value: usize) -> Result<()> {
-        let menu_item_state: Ref<MenuItemState> = q!(menu_item.try_borrow_state().ok_or(()));
+        let menu_item_state: Ref<MenuItemState> =
+            Self::try_get_borrowable_and_not_removed_menu_item(menu_item)?;
 
         match menu_item_state.get_kind() {
             MenuItemKind::Default => {
@@ -736,12 +757,14 @@ impl SysAPI {
     /// | :------- | :----------------------------------------------------- |
     /// | Rust     | `CrankstartAPI::get().system.set_menu_item_title(...)` |
     /// | C        | `pd->system->setMenuItemTitle(...)`                    |
-    pub fn get_menu_item_title(&self, menu_item: &MenuItemPtr) -> ShortTempString {
+    pub fn get_menu_item_title(&self, menu_item: &MenuItemPtr) -> Result<ShortTempString> {
+        Self::try_get_borrowable_and_not_removed_menu_item(menu_item)?;
+
         let title: *const c_char =
             unsafe { (self.getMenuItemTitle)(menu_item.get_pd_ptr().as_ptr()) };
 
         // Menu item titles are guaranteed to be valid ASCII, which is a subset of UTF-8.
-        ShortTempString::try_clone_c_str_truncating(title).unwrap()
+        Ok(ShortTempString::try_clone_c_str_truncating(title).unwrap())
     }
 
     /// Sets the display title of the menu item.
@@ -751,6 +774,7 @@ impl SysAPI {
     /// | Rust     | `CrankstartAPI::get().system.set_menu_item_title(...)` |
     /// | C        | `pd->system->setMenuItemTitle(...)`                    |
     pub fn set_menu_item_title(&self, menu_item: &MenuItemPtr, title: &str) -> Result<(), Error> {
+        Self::try_get_borrowable_and_not_removed_menu_item(menu_item)?;
         ensure!(title.is_ascii());
 
         let title: TempString = TempString::clone_null_terminated_truncating(title);
@@ -944,6 +968,16 @@ impl SysAPI {
         unsafe {
             (self.removeMenuItem)(pd_menu_item.as_ptr());
         }
+    }
+
+    fn try_get_borrowable_and_not_removed_menu_item<'m>(
+        menu_item: &'m MenuItemPtr,
+    ) -> Result<Ref<'m, MenuItemState>> {
+        let menu_item_state: Ref<MenuItemState> = q!(menu_item.try_borrow_state().ok_or(()));
+
+        ensure!(!menu_item_state.was_removed());
+
+        Ok(menu_item_state)
     }
 
     /// Reinterprets the user data provided to the callback as the same type that was provided to

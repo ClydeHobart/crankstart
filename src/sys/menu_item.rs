@@ -14,13 +14,26 @@ use {
     static_assertions::const_assert_eq,
 };
 
+/// This is likely larger than it needs to be, as the menu item options can only show a single
+/// option at a time.
 pub const MAX_OPTION_COUNT: usize = 32_usize;
 
 /// Your game can add up to three menu items to the system menu.
 pub const MAX_MENU_ITEM_COUNT: usize = 3_usize;
 
+/// The callback type used by default menu items. See [`SysAPI::add_default_menu_item`].
+///
+/// [`SysAPI::add_default_menu_item`]: crate::sys::SysAPI::add_default_menu_item
 pub type DefaultMenuItemCallback = Callback;
-pub type CheckboxMenuItemCallback = Callback<bool>;
+
+/// The callback type used by checkmark menu items. See [`SysAPI::add_checkmark_menu_item`].
+///
+/// [`SysAPI::add_checkmark_menu_item`]: crate::sys::SysAPI::add_checkmark_menu_item
+pub type CheckmarkMenuItemCallback = Callback<bool>;
+
+/// The callback type used by default menu items. See [`SysAPI::add_default_menu_item`].
+///
+/// [`SysAPI::add_default_menu_item`]: crate::sys::SysAPI::add_default_menu_item
 pub type OptionsMenuItemCallback = Callback<usize>;
 
 enum StatefulMenuItemKind {
@@ -30,7 +43,7 @@ enum StatefulMenuItemKind {
     },
     Checkmark {
         was_removed: bool,
-        callback: CheckboxMenuItemCallback,
+        callback: CheckmarkMenuItemCallback,
     },
     Options {
         was_removed: bool,
@@ -59,6 +72,7 @@ define_enum_with_count! {
     }
 }
 
+/// The state associated with a menu item, pointed to by a [`MenuItemPtr`].
 pub struct MenuItemState(StatefulMenuItemKind);
 
 impl MenuItemState {
@@ -82,7 +96,7 @@ impl MenuItemState {
         })
     }
 
-    pub(super) fn new_checkmark(callback: CheckboxMenuItemCallback) -> Self {
+    pub(super) fn new_checkmark(callback: CheckmarkMenuItemCallback) -> Self {
         Self(StatefulMenuItemKind::Checkmark {
             was_removed: false,
             callback,
@@ -100,6 +114,14 @@ impl MenuItemState {
             option_count: option_count as u8,
             callback,
         }))
+    }
+
+    pub(super) fn was_removed(&self) -> bool {
+        *match &self.0 {
+            StatefulMenuItemKind::Default { was_removed, .. } => was_removed,
+            StatefulMenuItemKind::Checkmark { was_removed, .. } => was_removed,
+            StatefulMenuItemKind::Options { was_removed, .. } => was_removed,
+        }
     }
 
     pub(super) fn invoke_callback(&self, menu_item: &MenuItemPtr) {
@@ -134,16 +156,15 @@ impl MenuItemState {
             StatefulMenuItemKind::Options { was_removed, .. } => was_removed,
         } = true;
     }
-
-    fn was_removed(&self) -> bool {
-        *match &self.0 {
-            StatefulMenuItemKind::Default { was_removed, .. } => was_removed,
-            StatefulMenuItemKind::Checkmark { was_removed, .. } => was_removed,
-            StatefulMenuItemKind::Options { was_removed, .. } => was_removed,
-        }
-    }
 }
 
+/// A menu item created by calling [`SysAPI::add_default_menu_item`],
+/// [`SysAPI::add_checkmark_menu_item`], or [`SysAPI::add_options_menu_item`]. Internally, it
+/// contains a `RefCell` to a [`MenuItemState`].
+///
+/// [`SysAPI::add_default_menu_item`]: crate::sys::SysAPI::add_default_menu_item
+/// [`SysAPI::add_checkmark_menu_item`]: crate::sys::SysAPI::add_checkmark_menu_item
+/// [`SysAPI::add_options_menu_item`]: crate::sys::SysAPI::add_options_menu_item
 #[derive(Clone, PartialEq)]
 pub struct MenuItemPtr(UntypedPtr);
 

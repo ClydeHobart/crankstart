@@ -3,7 +3,12 @@ use {
     anyhow::{Error, Result},
     arrayvec::{ArrayString, CapacityError},
     core::{
-        cmp::Ordering, ffi::c_char, result::Result as CoreResult, slice::from_raw_parts,
+        cmp::Ordering,
+        error::Error as CoreError,
+        ffi::c_char,
+        fmt::{Debug, Display, Formatter, Result as FmtResult},
+        result::Result as CoreResult,
+        slice::from_raw_parts,
         str::from_utf8,
     },
 };
@@ -361,6 +366,28 @@ impl<const CAP: usize> ArrayStringTrait for ArrayString<CAP> {
         q!(self.try_push_str_truncating(string));
 
         Ok(())
+    }
+}
+
+pub struct ErrorArrayString<const CAP: usize>(ArrayString<CAP>);
+
+impl<const CAP: usize> CoreError for ErrorArrayString<CAP> {}
+
+impl<const CAP: usize> Debug for ErrorArrayString<CAP> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        Debug::fmt(&self.0, f)
+    }
+}
+
+impl<const CAP: usize> Display for ErrorArrayString<CAP> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        Display::fmt(&self.0, f)
+    }
+}
+
+impl<const CAP: usize> From<ArrayString<CAP>> for ErrorArrayString<CAP> {
+    fn from(value: ArrayString<CAP>) -> Self {
+        Self(value)
     }
 }
 
