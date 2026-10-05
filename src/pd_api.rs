@@ -4,7 +4,11 @@
 #![allow(unnecessary_transmutes)]
 #![allow(unpredictable_function_pointer_comparisons)]
 
-use euclid::{default::Rect, rect};
+use {
+    crate::{CrankstartAPI, util::singleton::Singleton},
+    core::cell::Ref,
+    euclid::{default::Rect, rect},
+};
 
 #[cfg(all(target_os = "macos", any(target_arch = "x86", target_arch = "x86_64")))]
 pub mod ctypes {
@@ -92,6 +96,47 @@ impl From<Rect<i32>> for LCDRect {
 impl From<LCDRect> for Rect<i32> {
     fn from(r: LCDRect) -> Self {
         rect(r.left, r.top, r.right - r.left, r.bottom - r.top)
+    }
+}
+
+impl PDDateTime {
+    fn fix_weekday(&mut self) -> u8 {
+        let crankstart_api: Ref<CrankstartAPI> = CrankstartAPI::get();
+
+        *self = crankstart_api.system.convert_duration_to_date_time(
+            crankstart_api.system.convert_date_time_to_duration(*self),
+        );
+
+        self.weekday
+    }
+}
+
+impl From<FileStat> for PDDateTime {
+    fn from(value: FileStat) -> Self {
+        let year: u16 = (value.m_year & u16::MAX as i32) as u16;
+        let month: u8 = (value.m_month & u8::MAX as i32) as u8;
+        let day: u8 = (value.m_day & u8::MAX as i32) as u8;
+        let weekday: u8 = 0_u8;
+        let hour: u8 = (value.m_hour & u8::MAX as i32) as u8;
+        let minute: u8 = (value.m_minute & u8::MAX as i32) as u8;
+        let second: u8 = (value.m_second & u8::MAX as i32) as u8;
+
+        let mut pd_date_time: Self = Self {
+            year,
+            month,
+            day,
+            weekday,
+            hour,
+            minute,
+            second,
+        };
+
+        // `FileStat` doesn't have a weekday field, but my best guess is the time since epoch just
+        // uses YYYY, MM, DD, HH, MM, and SS, so the weekday is redundant information. Send it
+        // through a rinse cycle that'll put the correct value in there.
+        pd_date_time.fix_weekday();
+
+        pd_date_time
     }
 }
 

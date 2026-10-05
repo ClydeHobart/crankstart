@@ -13,6 +13,7 @@ use {
     hashbrown::HashSet,
 };
 
+#[allow(dead_code)]
 pub(crate) trait PtrTrait
 where
     Self: From<UntypedPtr> + 'static,

@@ -2,12 +2,14 @@ use {
     crate::{
         CrankstartAPI, define_crankstart_api, define_enum_from_pd_flags, ensure, eprintln,
         pd_api::{
-            FileOptions as PDFileOptions, FileStat, SDFile, SEEK_CUR, SEEK_END, SEEK_SET,
+            FileOptions as PDFileOptions, FileStat as PDFileStat, PDDateTime, SDFile, SEEK_CUR,
+            SEEK_END, SEEK_SET,
             ctypes::{c_char, c_void},
             playdate_file,
         },
         q,
         util::{
+            callback::TempCallback,
             ptr::{PtrTrait, UntypedPtr},
             singleton::Singleton,
             string::{ArrayStringTrait, ErrorArrayString, LongTempString, TempString},
@@ -17,11 +19,31 @@ use {
     core::{
         cell::{Ref, RefMut},
         fmt::Write,
-        mem::transmute,
         ptr::NonNull,
     },
     static_assertions::const_assert_eq,
 };
+
+#[derive(Debug, Default, Copy, Clone, PartialEq, Eq)]
+pub struct FileStat {
+    size: usize,
+    is_dir: bool,
+    date_time: PDDateTime,
+}
+
+impl From<PDFileStat> for FileStat {
+    fn from(value: PDFileStat) -> Self {
+        let is_dir: bool = value.isdir != 0_i32;
+        let size: usize = value.size as usize;
+        let date_time: PDDateTime = value.into();
+
+        Self {
+            size,
+            is_dir,
+            date_time,
+        }
+    }
+}
 
 define_enum_from_pd_flags! {
     #[repr(u8)]
@@ -95,7 +117,7 @@ define_crankstart_api! {
             userdata: *mut c_void,
             showhidden: i32,
         ) -> i32,
-        pub(crate) stat: unsafe extern "C" fn(path: *const c_char, stat: *mut FileStat) -> i32,
+        pub(crate) stat: unsafe extern "C" fn(path: *const c_char, stat: *mut PDFileStat) -> i32,
         pub(crate) mkdir: unsafe extern "C" fn(path: *const c_char) -> i32,
         pub(crate) unlink: unsafe extern "C" fn(
             name: *const c_char,
@@ -145,7 +167,82 @@ impl FileAPI {
         Ok(out_error_string)
     }
 
+    pub fn list_files<C: FnMut(&str)>(
+        &self,
+        path: &str,
+        callback: C,
+        show_hidden: bool,
+    ) -> Result<()> {
+        ensure!(path.is_ascii());
+
+        let path: LongTempString = LongTempString::clone_null_terminated_truncating(path);
+        let path: *const c_char = path.as_ptr() as *const c_char;
+        let mut callback: C = callback;
+        let mut callback: TempCallback<&str> = TempCallback::from_temp_closure(&mut callback);
+        let user_data: *mut c_void = (&mut callback) as *mut TempCallback<&str> as *mut c_void;
+        let show_hidden: i32 = show_hidden as i32;
+
+        self.handle_zero_ok_return_value(|| (), unsafe {
+            (self.listfiles)(
+                path,
+                Some(Self::list_files_callback),
+                user_data,
+                show_hidden,
+            )
+        })
+    }
+
+    pub fn stat(&self, path: &str) -> Result<FileStat> {
+        ensure!(path.is_ascii());
+
+        let path: LongTempString = LongTempString::clone_null_terminated_truncating(path);
+        let path: *const c_char = path.as_ptr() as *const c_char;
+
+        let mut pd_file_stat: PDFileStat = Default::default();
+
+        let stat_return_value: i32 = {
+            let pd_file_stat: *mut PDFileStat = &mut pd_file_stat as *mut PDFileStat;
+
+            unsafe { (self.stat)(path, pd_file_stat) }
+        };
+
+        self.handle_zero_ok_return_value(|| pd_file_stat.into(), stat_return_value)
+    }
+
+    pub fn make_dir(&self, path: &str) -> Result<()> {
+        ensure!(path.is_ascii());
+
+        let path: LongTempString = LongTempString::clone_null_terminated_truncating(path);
+        let path: *const c_char = path.as_ptr() as *const c_char;
+
+        self.handle_zero_ok_return_value(|| (), unsafe { (self.mkdir)(path) })
+    }
+
+    pub fn unlink(&self, path: &str, recursive: bool) -> Result<()> {
+        ensure!(path.is_ascii());
+
+        let path: LongTempString = LongTempString::clone_null_terminated_truncating(path);
+        let path: *const c_char = path.as_ptr() as *const c_char;
+        let recursive: i32 = recursive as i32;
+
+        self.handle_zero_ok_return_value(|| (), unsafe { (self.unlink)(path, recursive) })
+    }
+
+    pub fn rename(&self, from: &str, to: &str) -> Result<()> {
+        ensure!(from.is_ascii());
+        ensure!(to.is_ascii());
+
+        let from: LongTempString = LongTempString::clone_null_terminated_truncating(from);
+        let from: *const c_char = from.as_ptr() as *const c_char;
+        let to: LongTempString = LongTempString::clone_null_terminated_truncating(to);
+        let to: *const c_char = to.as_ptr() as *const c_char;
+
+        self.handle_zero_ok_return_value(|| (), unsafe { (self.rename)(from, to) })
+    }
+
     pub fn open(&self, name: &str, mode: FileOptions) -> Result<FilePtr> {
+        ensure!(name.is_ascii());
+
         let name: LongTempString = LongTempString::clone_null_terminated_truncating(name);
         let name: *const c_char = name.as_ptr() as *const c_char;
         let mode: PDFileOptions = mode.into();
@@ -177,13 +274,8 @@ impl FileAPI {
         let file: *mut SDFile = file.get_pd_ptr().as_ptr();
         let len: u32 = buf.len().try_into()?;
         let buf: *mut c_void = buf.as_mut_ptr() as *mut c_void;
-        let read_return_value: i32 = unsafe { (self.read)(file, buf, len) };
 
-        match read_return_value {
-            0_i32..=i32::MAX => Ok(read_return_value as usize),
-            Self::ERROR_RETURN_VALUE => self.get_err_internal(),
-            _ => Self::handle_unexpected_return_value(read_return_value),
-        }
+        self.handle_non_negative_ok_return_value(unsafe { (self.read)(file, buf, len) })
     }
 
     /// Writes the buffer of bytes buf to the file. Returns the number of bytes written, or -1 in
@@ -194,39 +286,24 @@ impl FileAPI {
         let file: *mut SDFile = file.get_pd_ptr().as_ptr();
         let len: u32 = buf.len().try_into()?;
         let buf: *const c_void = buf.as_ptr() as *mut c_void;
-        let write_return_value: i32 = unsafe { (self.write)(file, buf, len) };
 
-        match write_return_value {
-            0_i32..=i32::MAX => Ok(write_return_value as usize),
-            Self::ERROR_RETURN_VALUE => self.get_err_internal(),
-            _ => Self::handle_unexpected_return_value(write_return_value),
-        }
+        self.handle_non_negative_ok_return_value(unsafe { (self.write)(file, buf, len) })
     }
 
     pub fn flush(&self, file: &FilePtr) -> Result<usize> {
         Self::try_get_borrowable_and_not_removed_file(file)?;
 
         let file: *mut SDFile = file.get_pd_ptr().as_ptr();
-        let flush_return_value: i32 = unsafe { (self.flush)(file) };
 
-        match flush_return_value {
-            0_i32..=i32::MAX => Ok(flush_return_value as usize),
-            Self::ERROR_RETURN_VALUE => self.get_err_internal(),
-            _ => Self::handle_unexpected_return_value(flush_return_value),
-        }
+        self.handle_non_negative_ok_return_value(unsafe { (self.flush)(file) })
     }
 
     pub fn tell(&self, file: &FilePtr) -> Result<usize> {
         Self::try_get_borrowable_and_not_removed_file(file)?;
 
         let file: *mut SDFile = file.get_pd_ptr().as_ptr();
-        let tell_return_value: i32 = unsafe { (self.tell)(file) };
 
-        match tell_return_value {
-            0_i32..=i32::MAX => Ok(tell_return_value as usize),
-            Self::ERROR_RETURN_VALUE => self.get_err_internal(),
-            _ => Self::handle_unexpected_return_value(tell_return_value),
-        }
+        self.handle_non_negative_ok_return_value(unsafe { (self.tell)(file) })
     }
 
     pub fn seek(&self, file: &FilePtr, pos: isize, whence: Whence) -> Result<()> {
@@ -235,29 +312,14 @@ impl FileAPI {
         let file: *mut SDFile = file.get_pd_ptr().as_ptr();
         let pos: i32 = pos.try_into()?;
         let whence: i32 = whence as i32;
-        let seek_return_value: i32 = unsafe { (self.seek)(file, pos, whence) };
 
-        const SUCCESS_RETURN_VALUE: i32 = 0_i32;
-
-        match seek_return_value {
-            SUCCESS_RETURN_VALUE => Ok(()),
-            Self::ERROR_RETURN_VALUE => self.get_err_internal(),
-            _ => Self::handle_unexpected_return_value(seek_return_value),
-        }
+        self.handle_zero_ok_return_value(|| (), unsafe { (self.seek)(file, pos, whence) })
     }
 
-    const ERROR_RETURN_VALUE: i32 = -1_i32;
+    const ERR_RETURN_VALUE: i32 = -1_i32;
 
     fn close_internal(&self, pd_file: NonNull<SDFile>) -> Result<()> {
-        let close_return_value: i32 = unsafe { (self.close)(pd_file.as_ptr()) };
-
-        const SUCCESS_RETURN_VALUE: i32 = 0_i32;
-
-        match close_return_value {
-            SUCCESS_RETURN_VALUE => Ok(()),
-            Self::ERROR_RETURN_VALUE => self.get_err_internal(),
-            _ => Self::handle_unexpected_return_value(close_return_value),
-        }
+        self.handle_zero_ok_return_value(|| (), unsafe { (self.close)(pd_file.as_ptr()) })
     }
 
     fn try_get_borrowable_and_not_removed_file<'f>(
@@ -288,6 +350,26 @@ impl FileAPI {
         Err(anyhow!(ErrorArrayString::from(error_string)))
     }
 
+    fn handle_zero_ok_return_value<T, F: FnOnce() -> T>(
+        &self,
+        ok: F,
+        return_value: i32,
+    ) -> Result<T> {
+        match return_value {
+            0_i32 => Ok(ok()),
+            Self::ERR_RETURN_VALUE => self.get_err_internal(),
+            _ => Self::handle_unexpected_return_value(return_value),
+        }
+    }
+
+    fn handle_non_negative_ok_return_value(&self, return_value: i32) -> Result<usize> {
+        match return_value {
+            0_i32..=i32::MAX => Ok(return_value as usize),
+            Self::ERR_RETURN_VALUE => self.get_err_internal(),
+            _ => Self::handle_unexpected_return_value(return_value),
+        }
+    }
+
     fn handle_unexpected_return_value<T>(return_value: i32) -> Result<T> {
         let mut string: TempString = TempString::new();
 
@@ -300,15 +382,15 @@ impl FileAPI {
         let list_files_callback = || -> Result<()> {
             let path: LongTempString = LongTempString::try_clone_c_str_truncating(path)?;
             let path: &str = path.as_str();
-            // let callback: *mut dyn FnMut(&str) =
-            //     unsafe { transmute::<*mut c_void, *mut dyn FnMut(&str)>(user_data) };
+            let callback: *const TempCallback<&str> = user_data as *const TempCallback<&str>;
 
-            // ensure!(!callback.is_null());
+            ensure!(!callback.is_null());
+            ensure!(callback.is_aligned());
 
-            // // We've just explicitly verified that it's not null.
-            // let callback: &mut dyn FnMut(&str) = unsafe { callback.as_mut_unchecked() };
+            // We've just explicitly verified that it's not null.
+            let callback: &TempCallback<&str> = unsafe { callback.as_ref_unchecked() };
 
-            // callback(path);
+            callback.invoke(path);
 
             Ok(())
         };
