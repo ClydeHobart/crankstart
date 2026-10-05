@@ -1,7 +1,5 @@
 pub mod callback;
-pub mod enum_flags;
-pub mod enum_with_count;
-pub mod enum_with_count_and_strings;
+pub mod r#enum;
 pub mod euclid;
 pub mod ffi;
 pub mod macros;

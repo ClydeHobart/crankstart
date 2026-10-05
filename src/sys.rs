@@ -4,8 +4,8 @@ use {
         MenuItemKind, MenuItemPtr, MenuItemState, OptionsMenuItemCallback,
     },
     crate::{
-        CrankstartAPI, Game, System, define_crankstart_api, define_enum_flags,
-        define_enum_with_count, define_enum_with_count_and_strings, ensure, eprintln,
+        CrankstartAPI, Game, System, define_crankstart_api, define_enum_count, define_enum_flags,
+        define_enum_from_pd_flags, ensure, eprintln,
         pd_api::{
             __va_list_tag, LCDBitmap, PDButtonCallbackFunction, PDButtons, PDCallbackFunction,
             PDDateTime, PDLanguage, PDMenuItem, PDMenuItemCallbackFunction, PDPeripherals,
@@ -14,8 +14,7 @@ use {
         },
         q, str_lit,
         util::{
-            enum_flags::EnumFlags,
-            enum_with_count::EnumWithCount,
+            r#enum::count::EnumCount,
             euclid::IPxPoint2D,
             ptr::{PtrInner, PtrTrait},
             singleton::Singleton,
@@ -39,58 +38,24 @@ use {
 
 pub mod menu_item;
 
-macro_rules! define_button {
-    {
-        #[repr($integer:ident)]
-        $(#[$attr:meta])*
-        $pub:vis enum $enum:ident {
-            $( $enum_variant:ident = $pd_buttons_constant:ident),* $(,)?
-        }
-    } => {
-        define_enum_with_count_and_strings! {
-            #[repr($integer)]
-            $( #[$attr] )*
-            $pub enum $enum {
-                $( $enum_variant, )*
-            }
-        }
-
-        $(
-            const_assert_eq!(
-                1_u32 << $enum::$enum_variant as usize, PDButtons::$pd_buttons_constant.0);
-        )*
-    };
-}
-
-define_button! {
+define_enum_from_pd_flags! {
     #[repr(u8)]
+    #[flags(Buttons, PDButtons)]
     /// A parallel definition of [`PDButtons`] for use in the [`Buttons`] typed enum flag set.
     #[derive(Clone, Copy, PartialEq)]
     pub enum Button {
-        Left = kButtonLeft,
-        Right = kButtonRight,
-        Up = kButtonUp,
-        Down = kButtonDown,
-        B = kButtonB,
-        A = kButtonA,
-    }
-}
-
-define_enum_flags! {
-    /// A typed enum flag set for [`Button`].
-    #[derive(Clone, Copy, Default, PartialEq)]
-    pub struct Buttons = Button in u8;
-}
-
-impl From<PDButtons> for Buttons {
-    fn from(value: PDButtons) -> Self {
-        // There are just 6 values here, and their bit positions are checked at compile time within
-        // `define_button`.
-        assert!(value.0 <= <Buttons as EnumFlags>::InnerInner::MAX as u32);
-
-        Self(<Buttons as EnumFlags>::Inner::new([
-            value.0 as <Buttons as EnumFlags>::InnerInner
-        ]))
+        #[pd_flag(kButtonLeft)]
+        Left,
+        #[pd_flag(kButtonRight)]
+        Right,
+        #[pd_flag(kButtonUp)]
+        Up,
+        #[pd_flag(kButtonDown)]
+        Down,
+        #[pd_flag(kButtonB)]
+        B,
+        #[pd_flag(kButtonA)]
+        A,
     }
 }
 
@@ -106,7 +71,7 @@ pub struct ButtonState {
     pub released: Buttons,
 }
 
-define_enum_with_count! {
+define_enum_count! {
     #[repr(u8)]
     /// A parallel definition of [`PDPeripherals`] for use in the [`Peripherals`] typed enum flag
     /// set.
@@ -122,9 +87,9 @@ const_assert_eq!(
 );
 
 define_enum_flags! {
+    #[flags(Peripheral)]
     /// A typed enum flag set for [`Peripheral`].
-    #[derive(Clone, Copy, Default, PartialEq)]
-    pub struct Peripherals = Peripheral in u8;
+    pub struct Peripherals;
 }
 
 /// A tuple of seconds and sub-second milliseconds, capable of expressing at most ~136.16 years.

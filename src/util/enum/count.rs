@@ -1,4 +1,4 @@
-pub trait EnumWithCount: Clone + Copy + Sized {
+pub trait EnumCount: Sized {
     const COUNT: usize;
 
     type Integer;
@@ -7,7 +7,7 @@ pub trait EnumWithCount: Clone + Copy + Sized {
 }
 
 #[macro_export]
-macro_rules! define_enum_with_count {
+macro_rules! define_enum_count {
     {
         #[repr($integer:ident)]
         $(#[$attr:meta])*
@@ -21,7 +21,7 @@ macro_rules! define_enum_with_count {
             $( $variant, )*
         }
 
-        impl $crate::util::enum_with_count::EnumWithCount for $enum {
+        impl $crate::util::r#enum::count::EnumCount for $enum {
             const COUNT: usize = {
                 let mut count: usize = 0_usize;
 
@@ -50,7 +50,7 @@ macro_rules! define_enum_with_count {
 pub mod tests {
     use {super::*, crate::util::mem::do_types_have_eq_size_and_align};
 
-    define_enum_with_count! {
+    define_enum_count! {
         #[repr(u8)]
         #[derive(Clone, Copy, Debug, PartialEq)]
         enum TestEnumWithCount1 {
@@ -60,7 +60,7 @@ pub mod tests {
         }
     }
 
-    define_enum_with_count! {
+    define_enum_count! {
         #[repr(u16)]
         #[derive(Clone, Copy, Debug, PartialEq)]
         enum TestEnumWithCount2 {

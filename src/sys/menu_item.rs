@@ -1,10 +1,10 @@
 use {
     crate::{
-        CrankstartAPI, define_enum_with_count, ensure,
+        CrankstartAPI, define_enum_count, ensure,
         pd_api::PDMenuItem,
         util::{
             callback::Callback,
-            enum_with_count::EnumWithCount,
+            r#enum::count::EnumCount,
             ptr::{PtrTrait, UntypedPtr},
             singleton::Singleton,
         },
@@ -62,7 +62,7 @@ impl StatefulMenuItemKind {
     }
 }
 
-define_enum_with_count! {
+define_enum_count! {
     #[repr(u8)]
     #[derive(Clone, Copy, PartialEq)]
     pub enum MenuItemKind {
