@@ -14,7 +14,7 @@ use {
         },
         q, str_lit,
         util::{
-            r#enum::count::EnumCount,
+            enums::count::EnumCount,
             euclid::IPxPoint2D,
             ptr::{PtrInner, PtrTrait},
             singleton::Singleton,
@@ -240,11 +240,11 @@ impl SysAPI {
     /// Silently consumes any error encountered. To recover errors instead, see
     /// [Self::try_log_to_console].
     ///
-    /// | Language | Equivalent function                               |
-    /// | :------- | :------------------------------------------------ |
-    /// | Rust     | `CrankstartAPI::get().system.log_to_console(...)` |
-    /// | C        | `pd->system->logToConsole(...)`                   |
-    /// | Lua      | `print(...)`                                      |
+    /// | Language | Equivalent function                     |
+    /// | :------- | :-------------------------------------- |
+    /// | Rust     | `crankstart.system.log_to_console(...)` |
+    /// | C        | `playdate->system->logToConsole(...)`   |
+    /// | Lua      | `print(...)`                            |
     pub fn log_to_console(&self, string: &str) {
         self.try_log_to_console(string).ok();
     }
@@ -264,10 +264,10 @@ impl SysAPI {
     ///
     /// Silently consumes any error encountered. To recover errors instead, see [Self::try_error].
     ///
-    /// | Language | Equivalent function                               |
-    /// | :------- | :------------------------------------------------ |
-    /// | Rust     | `CrankstartAPI::get().system.error(...)`          |
-    /// | C        | `pd->system->error(...)`                          |
+    /// | Language | Equivalent function            |
+    /// | :------- | :----------------------------- |
+    /// | Rust     | `crankstart.system.error(...)` |
+    /// | C        | `playdate->system->error(...)` |
     pub fn error(&self, string: &str) {
         self.try_error(string).ok();
     }
@@ -282,10 +282,10 @@ impl SysAPI {
 
     /// Returns the current language of the system.
     ///
-    /// | Language | Equivalent function                          |
-    /// | :------- | :------------------------------------------- |
-    /// | Rust     | `CrankstartAPI::get().system.get_language()` |
-    /// | C        | `pd->system->getLanguage()`                  |
+    /// | Language | Equivalent function                |
+    /// | :------- | :--------------------------------- |
+    /// | Rust     | `crankstart.system.get_language()` |
+    /// | C        | `playdate->system->getLanguage()`  |
     pub fn get_language(&self) -> PDLanguage {
         unsafe { (self.getLanguage)() }
     }
@@ -294,20 +294,20 @@ impl SysAPI {
     /// consistent timebase while a game is running, but the counter will be disabled when the
     /// device is sleeping.
     ///
-    /// | Language | Equivalent function                                           |
-    /// | :------- | :------------------------------------------------------------ |
-    /// | Rust     | `CrankstartAPI::get().system.get_current_time_milliseconds()` |
-    /// | C        | `pd->system->getCurrentTimeMilliseconds()`                    |
+    /// | Language | Equivalent function                                 |
+    /// | :------- | :-------------------------------------------------- |
+    /// | Rust     | `crankstart.system.get_current_time_milliseconds()` |
+    /// | C        | `playdate->system->getCurrentTimeMilliseconds()`    |
     pub fn get_current_time_milliseconds(&self) -> u32 {
         unsafe { (self.getCurrentTimeMilliseconds)() }
     }
 
     /// Returns the [`Duration`] elapsed since midnight (hour 0), January 1, 2000.
     ///
-    /// | Language | Equivalent function                                      |
-    /// | :------- | :------------------------------------------------------- |
-    /// | Rust     | `CrankstartAPI::get().system.get_duration_since_epoch()` |
-    /// | C        | `pd->system->getSecondsSinceEpoch(...)`                  |
+    /// | Language | Equivalent function                            |
+    /// | :------- | :--------------------------------------------- |
+    /// | Rust     | `crankstart.system.get_duration_since_epoch()` |
+    /// | C        | `playdate->system->getSecondsSinceEpoch(...)`  |
     pub fn get_duration_since_epoch(&self) -> Duration {
         let mut milliseconds: u32 = 0_u32;
 
@@ -321,10 +321,10 @@ impl SysAPI {
 
     /// Calculates the current frames per second and draws that value at `point`.
     ///
-    /// | Language | Equivalent function                           |
-    /// | :------- | :-------------------------------------------- |
-    /// | Rust     | `CrankstartAPI::get().system.draw_fps(point)` |
-    /// | C        | `pd->system->drawFPS(point.x, point.y)`       |
+    /// | Language | Equivalent function               |
+    /// | :------- | :-------------------------------- |
+    /// | Rust     | `crankstart.system.draw_fps(...)` |
+    /// | C        | `playdate->system->drawFPS(...)`  |
     pub fn draw_fps(&self, point: IPxPoint2D) {
         unsafe {
             (self.drawFPS)(point.x, point.y);
@@ -336,10 +336,10 @@ impl SysAPI {
     /// or released over the previous update cycle--at the nominal frame rate of 50 ms, fast button
     /// presses can be missed if you just poll the instantaneous state.
     ///
-    /// | Language | Equivalent function                              |
-    /// | :------- | :----------------------------------------------- |
-    /// | Rust     | `CrankstartAPI::get().system.get_button_state()` |
-    /// | C        | `pd->system->getButtonState(...)`                |
+    /// | Language | Equivalent function                     |
+    /// | :------- | :-------------------------------------- |
+    /// | Rust     | `crankstart.system.get_button_state()`  |
+    /// | C        | `playdate->system->getButtonState(...)` |
     pub fn get_button_state(&self) -> ButtonState {
         let mut current: PDButtons = PDButtons(0_u32);
         let mut pushed: PDButtons = PDButtons(0_u32);
@@ -360,10 +360,10 @@ impl SysAPI {
     /// peripheral, it must first be enabled via this function. Accelerometer data is not available
     /// until the next update cycle after it’s enabled.
     ///
-    /// | Language | Equivalent function                                        |
-    /// | :------- | :--------------------------------------------------------- |
-    /// | Rust     | `CrankstartAPI::get().system.set_peripherals_enabled(...)` |
-    /// | C        | `pd->system->setPeripheralsEnabled(...)`                   |
+    /// | Language | Equivalent function                              |
+    /// | :------- | :----------------------------------------------- |
+    /// | Rust     | `crankstart.system.set_peripherals_enabled(...)` |
+    /// | C        | `playdate->system->setPeripheralsEnabled(...)`   |
     pub fn set_peripherals_enabled(&self, mask: Peripherals) {
         unsafe {
             let mask: PDPeripherals = transmute::<u32, PDPeripherals>(mask.into_inner() as u32);
@@ -374,10 +374,10 @@ impl SysAPI {
 
     /// Returns the last-read accelerometer data.
     ///
-    /// | Language | Equivalent function                               |
-    /// | :------- | :------------------------------------------------ |
-    /// | Rust     | `CrankstartAPI::get().system.get_accelerometer()` |
-    /// | C        | `pd->system->getAccelerometer(...)`               |
+    /// | Language | Equivalent function                       |
+    /// | :------- | :---------------------------------------- |
+    /// | Rust     | `crankstart.system.get_accelerometer()`   |
+    /// | C        | `playdate->system->getAccelerometer(...)` |
     pub fn get_accelerometer(&self) -> Vector3D<f32> {
         let mut vector_3d: Vector3D<f32> = Vector3D::zero();
 
@@ -391,10 +391,10 @@ impl SysAPI {
     /// Returns the angle change of the crank since the last time this function was called. Negative
     /// values are anti-clockwise.
     ///
-    /// | Language | Equivalent function                              |
-    /// | :------- | :----------------------------------------------- |
-    /// | Rust     | `CrankstartAPI::get().system.get_crank_change()` |
-    /// | C        | `pd->system->getCrankChange()`                   |
+    /// | Language | Equivalent function                    |
+    /// | :------- | :------------------------------------- |
+    /// | Rust     | `crankstart.system.get_crank_change()` |
+    /// | C        | `playdate->system->getCrankChange()`   |
     pub fn get_crank_change(&self) -> f32 {
         unsafe { (self.getCrankChange)() }
     }
@@ -402,20 +402,20 @@ impl SysAPI {
     /// Returns the current position of the crank, in the range 0-360. Zero is pointing up, and the
     /// value increases as the crank moves clockwise, as viewed from the right side of the device.
     ///
-    /// | Language | Equivalent function                             |
-    /// | :------- | :---------------------------------------------- |
-    /// | Rust     | `CrankstartAPI::get().system.get_crank_angle()` |
-    /// | C        | `pd->system->getCrankAngle()`                   |
+    /// | Language | Equivalent function                   |
+    /// | :------- | :------------------------------------ |
+    /// | Rust     | `crankstart.system.get_crank_angle()` |
+    /// | C        | `playdate->system->getCrankAngle()`   |
     pub fn get_crank_angle(&self) -> f32 {
         unsafe { (self.getCrankAngle)() }
     }
 
     /// Returns whether or not the crank is folded into the unit.
     ///
-    /// | Language | Equivalent function                             |
-    /// | :------- | :---------------------------------------------- |
-    /// | Rust     | `CrankstartAPI::get().system.is_crank_docked()` |
-    /// | C        | `pd->system->isCrankDocked()`                   |
+    /// | Language | Equivalent function                   |
+    /// | :------- | :------------------------------------ |
+    /// | Rust     | `crankstart.system.is_crank_docked()` |
+    /// | C        | `playdate->system->isCrankDocked()`   |
     pub fn is_crank_docked(&self) -> bool {
         unsafe { (self.isCrankDocked)() != 0_i32 }
     }
@@ -427,20 +427,20 @@ impl SysAPI {
     ///
     /// The function returns the previous value for this setting.
     ///
-    /// | Language | Equivalent function                                          |
-    /// | :------- | :----------------------------------------------------------- |
-    /// | Rust     | `CrankstartAPI::get().system.set_crank_sounds_disabled(...)` |
-    /// | C        | `pd->system->setCrankSoundsDisabled(...)`                    |
+    /// | Language | Equivalent function                                |
+    /// | :------- | :------------------------------------------------- |
+    /// | Rust     | `crankstart.system.set_crank_sounds_disabled(...)` |
+    /// | C        | `playdate->system->setCrankSoundsDisabled(...)`    |
     pub fn set_crank_sounds_disabled(&self, disable: bool) -> bool {
         unsafe { (self.setCrankSoundsDisabled)(disable as i32) != 0_i32 }
     }
 
     /// Returns whether the global "flipped" system setting is set.
     ///
-    /// | Language | Equivalent function                         |
-    /// | :------- | :------------------------------------------ |
-    /// | Rust     | `CrankstartAPI::get().system.get_flipped()` |
-    /// | C        | `pd->system->getFlipped()`                  |
+    /// | Language | Equivalent function               |
+    /// | :------- | :-------------------------------- |
+    /// | Rust     | `crankstart.system.get_flipped()` |
+    /// | C        | `playdate->system->getFlipped()`  |
     pub fn get_flipped(&self) -> bool {
         unsafe { (self.getFlipped)() != 0_i32 }
     }
@@ -448,10 +448,10 @@ impl SysAPI {
     /// Disables or enables the 3 minute auto lock feature. When called, the timer is reset to 3
     /// minutes.
     ///
-    /// | Language | Equivalent function                                    |
-    /// | :------- | :----------------------------------------------------- |
-    /// | Rust     | `CrankstartAPI::get().system.set_auto_lock_disabled()` |
-    /// | C        | `pd->system->setAutoLockDisabled()`                    |
+    /// | Language | Equivalent function                          |
+    /// | :------- | :------------------------------------------- |
+    /// | Rust     | `crankstart.system.set_auto_lock_disabled()` |
+    /// | C        | `playdate->system->setAutoLockDisabled()`    |
     pub fn set_auto_lock_disabled(&self, disable: bool) {
         unsafe {
             (self.setAutoLockDisabled)(disable as i32);
@@ -470,10 +470,10 @@ impl SysAPI {
     /// Your game can then present an options interface to the player, or take other action, in
     /// whatever manner you choose.
     ///
-    /// | Language | Equivalent function                                      |
-    /// | :------- | :------------------------------------------------------- |
-    /// | Rust     | `CrankstartAPI::get().system.add_default_menu_item(...)` |
-    /// | C        | `pd->system->addMenuItem(...)`                           |
+    /// | Language | Equivalent function                            |
+    /// | :------- | :--------------------------------------------- |
+    /// | Rust     | `crankstart.system.add_default_menu_item(...)` |
+    /// | C        | `playdate->system->addMenuItem(...)`           |
     ///
     /// [`PDSystemEvent::kEventResume`]: crate::pd_api::PDSystemEvent#variant.kEventResume
     pub fn add_default_menu_item(
@@ -506,10 +506,10 @@ impl SysAPI {
     /// * If this menu item is interacted with while the system menu is open, parameter `callback`
     ///   will be called when the menu is closed.
     ///
-    /// | Language | Equivalent function                                        |
-    /// | :------- | :--------------------------------------------------------- |
-    /// | Rust     | `CrankstartAPI::get().system.add_checkmark_menu_item(...)` |
-    /// | C        | `pd->system->addCheckmarkMenuItem(...)`                    |
+    /// | Language | Equivalent function                              |
+    /// | :------- | :----------------------------------------------- |
+    /// | Rust     | `crankstart.system.add_checkmark_menu_item(...)` |
+    /// | C        | `playdate->system->addCheckmarkMenuItem(...)`    |
     pub fn add_checkmark_menu_item(
         &self,
         title: &str,
@@ -549,10 +549,10 @@ impl SysAPI {
     /// * If this menu item is interacted with while the system menu is open, parameter `callback`
     ///   will be called when the menu is closed.
     ///
-    /// | Language | Equivalent function                                      |
-    /// | :------- | :------------------------------------------------------- |
-    /// | Rust     | `CrankstartAPI::get().system.add_options_menu_item(...)` |
-    /// | C        | `pd->system->addOptionsMenuItem(...)`                    |
+    /// | Language | Equivalent function                            |
+    /// | :------- | :--------------------------------------------- |
+    /// | Rust     | `crankstart.system.add_options_menu_item(...)` |
+    /// | C        | `playdate->system->addOptionsMenuItem(...)`    |
     pub fn add_options_menu_item(
         &self,
         title: &str,
@@ -609,10 +609,10 @@ impl SysAPI {
 
     /// Removes all custom menu items from the system menu.
     ///
-    /// | Language | Equivalent function                                   |
-    /// | :------- | :---------------------------------------------------- |
-    /// | Rust     | `CrankstartAPI::get().system.remove_all_menu_items()` |
-    /// | C        | `pd->system->removeAllMenuItems()`                    |
+    /// | Language | Equivalent function                         |
+    /// | :------- | :------------------------------------------ |
+    /// | Rust     | `crankstart.system.remove_all_menu_items()` |
+    /// | C        | `playdate->system->removeAllMenuItems()`    |
     pub fn remove_all_menu_items(&self) {
         unsafe {
             ((self.removeAllMenuItems)());
@@ -627,10 +627,10 @@ impl SysAPI {
 
     /// Removes the menu item from the system menu.
     ///
-    /// | Language | Equivalent function                              |
-    /// | :------- | :----------------------------------------------- |
-    /// | Rust     | `CrankstartAPI::get().system.remove_menu_item()` |
-    /// | C        | `pd->system->removeMenuItem()`                   |
+    /// | Language | Equivalent function                    |
+    /// | :------- | :------------------------------------- |
+    /// | Rust     | `crankstart.system.remove_menu_item()` |
+    /// | C        | `playdate->system->removeMenuItem()`   |
     pub fn remove_menu_item(&self, menu_item: MenuItemPtr) -> Result<()> {
         // One reference for parameter `menu_item`, one reference for what's stored in
         // self.menu_items, and one reference for what's stored in `CrankstartAPI::ptr_manager`.
@@ -660,10 +660,10 @@ impl SysAPI {
     ///
     /// Returns an error if the menu item is currently borrowed mutably.
     ///
-    /// | Language | Equivalent function                                    |
-    /// | :------- | :----------------------------------------------------- |
-    /// | Rust     | `CrankstartAPI::get().system.get_menu_item_value(...)` |
-    /// | C        | `pd->system->getMenuItemValue(...)`                    |
+    /// | Language | Equivalent function                          |
+    /// | :------- | :------------------------------------------- |
+    /// | Rust     | `crankstart.system.get_menu_item_value(...)` |
+    /// | C        | `playdate->system->getMenuItemValue(...)`    |
     pub fn get_menu_item_value(&self, menu_item: &MenuItemPtr) -> Result<usize> {
         let menu_item_state: Ref<MenuItemState> =
             Self::try_get_borrowable_and_not_removed_menu_item(menu_item)?;
@@ -689,10 +689,10 @@ impl SysAPI {
     /// * The menu item is a default menu item.
     /// * An invalid value was supplied.
     ///
-    /// | Language | Equivalent function                                    |
-    /// | :------- | :----------------------------------------------------- |
-    /// | Rust     | `CrankstartAPI::get().system.set_menu_item_value(...)` |
-    /// | C        | `pd->system->setMenuItemValue(...)`                    |
+    /// | Language | Equivalent function                          |
+    /// | :------- | :------------------------------------------- |
+    /// | Rust     | `crankstart.system.set_menu_item_value(...)` |
+    /// | C        | `playdate->system->setMenuItemValue(...)`    |
     pub fn set_menu_item_value(&self, menu_item: &MenuItemPtr, value: usize) -> Result<()> {
         let menu_item_state: Ref<MenuItemState> =
             Self::try_get_borrowable_and_not_removed_menu_item(menu_item)?;
@@ -718,10 +718,10 @@ impl SysAPI {
     ///
     /// Returns an error if the
     ///
-    /// | Language | Equivalent function                                    |
-    /// | :------- | :----------------------------------------------------- |
-    /// | Rust     | `CrankstartAPI::get().system.set_menu_item_title(...)` |
-    /// | C        | `pd->system->setMenuItemTitle(...)`                    |
+    /// | Language | Equivalent function                          |
+    /// | :------- | :------------------------------------------- |
+    /// | Rust     | `crankstart.system.set_menu_item_title(...)` |
+    /// | C        | `playdate->system->setMenuItemTitle(...)`    |
     pub fn get_menu_item_title(&self, menu_item: &MenuItemPtr) -> Result<ShortTempString> {
         Self::try_get_borrowable_and_not_removed_menu_item(menu_item)?;
 
@@ -734,10 +734,10 @@ impl SysAPI {
 
     /// Sets the display title of the menu item.
     ///
-    /// | Language | Equivalent function                                    |
-    /// | :------- | :----------------------------------------------------- |
-    /// | Rust     | `CrankstartAPI::get().system.set_menu_item_title(...)` |
-    /// | C        | `pd->system->setMenuItemTitle(...)`                    |
+    /// | Language | Equivalent function                          |
+    /// | :------- | :------------------------------------------- |
+    /// | Rust     | `crankstart.system.set_menu_item_title(...)` |
+    /// | C        | `playdate->system->setMenuItemTitle(...)`    |
     pub fn set_menu_item_title(&self, menu_item: &MenuItemPtr, title: &str) -> Result<(), Error> {
         Self::try_get_borrowable_and_not_removed_menu_item(menu_item)?;
         ensure!(title.is_ascii());
@@ -754,10 +754,10 @@ impl SysAPI {
 
     /// Returns whether the global "reduce flashing" system setting is set.
     ///
-    /// | Language | Equivalent function                                 |
-    /// | :------- | :-------------------------------------------------- |
-    /// | Rust     | `CrankstartAPI::get().system.get_reduce_flashing()` |
-    /// | C        | `pd->system->getReduceFlashing()`                   |
+    /// | Language | Equivalent function                       |
+    /// | :------- | :---------------------------------------- |
+    /// | Rust     | `crankstart.system.get_reduce_flashing()` |
+    /// | C        | `playdate->system->getReduceFlashing()`   |
     pub fn get_reduce_flashing(&self) -> bool {
         unsafe { (self.getReduceFlashing)() != 0_i32 }
     }
@@ -765,20 +765,20 @@ impl SysAPI {
     /// Returns the number of seconds since [`SysAPI::reset_elapsed_time`] was called. The value is
     /// a floating-point number with microsecond accuracy.
     ///
-    /// | Language | Equivalent function                              |
-    /// | :------- | :----------------------------------------------- |
-    /// | Rust     | `CrankstartAPI::get().system.get_elapsed_time()` |
-    /// | C        | `pd->system->getElapsedTime()`                   |
+    /// | Language | Equivalent function                    |
+    /// | :------- | :------------------------------------- |
+    /// | Rust     | `crankstart.system.get_elapsed_time()` |
+    /// | C        | `playdate->system->getElapsedTime()`   |
     pub fn get_elapsed_time(&self) -> f32 {
         unsafe { (self.getElapsedTime)() }
     }
 
     /// Resets the high-resolution timer.
     ///
-    /// | Language | Equivalent function                                |
-    /// | :------- | :------------------------------------------------- |
-    /// | Rust     | `CrankstartAPI::get().system.reset_elapsed_time()` |
-    /// | C        | `pd->system->resetElapsedTime()`                   |
+    /// | Language | Equivalent function                      |
+    /// | :------- | :--------------------------------------- |
+    /// | Rust     | `crankstart.system.reset_elapsed_time()` |
+    /// | C        | `playdate->system->resetElapsedTime()`   |
     pub fn reset_elapsed_time(&self) {
         unsafe { (self.resetElapsedTime)() }
     }
@@ -786,40 +786,40 @@ impl SysAPI {
     /// Returns a value from 0-100 denoting the current level of battery charge. 0 = empty; 100 =
     /// full.
     ///
-    /// | Language | Equivalent function                                    |
-    /// | :------- | :----------------------------------------------------- |
-    /// | Rust     | `CrankstartAPI::get().system.get_battery_percentage()` |
-    /// | C        | `pd->system->getBatteryPercentage()`                   |
+    /// | Language | Equivalent function                          |
+    /// | :------- | :------------------------------------------- |
+    /// | Rust     | `crankstart.system.get_battery_percentage()` |
+    /// | C        | `playdate->system->getBatteryPercentage()`   |
     pub fn get_battery_percentage(&self) -> f32 {
         unsafe { (self.getBatteryPercentage)() }
     }
 
     /// Returns the battery’s current voltage level.
     ///
-    /// | Language | Equivalent function                                 |
-    /// | :------- | :-------------------------------------------------- |
-    /// | Rust     | `CrankstartAPI::get().system.get_battery_voltage()` |
-    /// | C        | `pd->system->getBatteryVoltage()`                   |
+    /// | Language | Equivalent function                       |
+    /// | :------- | :---------------------------------------- |
+    /// | Rust     | `crankstart.system.get_battery_voltage()` |
+    /// | C        | `playdate->system->getBatteryVoltage()`   |
     pub fn get_battery_voltage(&self) -> f32 {
         unsafe { (self.getBatteryVoltage)() }
     }
 
     /// Returns the system timezone offset from GMT, in seconds.
     ///
-    /// | Language | Equivalent function                                 |
-    /// | :------- | :-------------------------------------------------- |
-    /// | Rust     | `CrankstartAPI::get().system.get_timezone_offset()` |
-    /// | C        | `pd->system->getTimezoneOffset()`                   |
+    /// | Language | Equivalent function                       |
+    /// | :------- | :---------------------------------------- |
+    /// | Rust     | `crankstart.system.get_timezone_offset()` |
+    /// | C        | `playdate->system->getTimezoneOffset()`   |
     pub fn get_timezone_offset(&self) -> i32 {
         unsafe { (self.getTimezoneOffset)() }
     }
 
     /// Returns whether the user has set the 24-Hour Time preference in the Settings program.
     ///
-    /// | Language | Equivalent function                                         |
-    /// | :------- | :---------------------------------------------------------- |
-    /// | Rust     | `CrankstartAPI::get().system.should_display_24_hour_time()` |
-    /// | C        | `pd->system->shouldDisplay24HourTime()`                     |
+    /// | Language | Equivalent function                               |
+    /// | :------- | :------------------------------------------------ |
+    /// | Rust     | `crankstart.system.should_display_24_hour_time()` |
+    /// | C        | `playdate->system->shouldDisplay24HourTime()`     |
     pub fn should_display_24_hour_time(&self) -> bool {
         unsafe { (self.shouldDisplay24HourTime)() != 0_i32 }
     }
@@ -827,10 +827,10 @@ impl SysAPI {
     /// Converts the given [`Duration`] elapsed since the Playdate epoch--midnight (hour 0), January
     /// 1, 2000-- to a [`PDDateTime`].
     ///
-    /// | Language | Equivalent function                                           |
-    /// | :------- | :------------------------------------------------------------ |
-    /// | Rust     | `CrankstartAPI::get().system.convert_duration_to_date_time()` |
-    /// | C        | `pd->system->convertEpochToDateTime()`                        |
+    /// | Language | Equivalent function                                 |
+    /// | :------- | :-------------------------------------------------- |
+    /// | Rust     | `crankstart.system.convert_duration_to_date_time()` |
+    /// | C        | `playdate->system->convertEpochToDateTime()`        |
     pub fn convert_duration_to_date_time(&self, duration: Duration) -> PDDateTime {
         let mut date_time: PDDateTime = PDDateTime::default();
 
@@ -844,10 +844,10 @@ impl SysAPI {
     /// Converts the given [`PDDateTime`] to the [`Duration`] elapsed since the Playdate epoch:
     /// midnight (hour 0), January 1, 2000.
     ///
-    /// | Language | Equivalent function                                           |
-    /// | :------- | :------------------------------------------------------------ |
-    /// | Rust     | `CrankstartAPI::get().system.convert_duration_to_date_time()` |
-    /// | C        | `pd->system->convertEpochToDateTime()`                        |
+    /// | Language | Equivalent function                                 |
+    /// | :------- | :-------------------------------------------------- |
+    /// | Rust     | `crankstart.system.convert_duration_to_date_time()` |
+    /// | C        | `playdate->system->convertEpochToDateTime()`        |
     pub fn convert_date_time_to_duration(&self, date_time: PDDateTime) -> Duration {
         let mut date_time: PDDateTime = date_time;
 
@@ -865,10 +865,10 @@ impl SysAPI {
     ///
     /// This isn't fully public to keep the public API Rusty.
     ///
-    /// | Language | Equivalent function                                 |
-    /// | :------- | :-------------------------------------------------- |
-    /// | Rust     | `CrankstartAPI::get().system.set_update_callback()` |
-    /// | C        | `pd->system->setUpdateCallback()`                   |
+    /// | Language | Equivalent function                       |
+    /// | :------- | :---------------------------------------- |
+    /// | Rust     | `crankstart.system.set_update_callback()` |
+    /// | C        | `playdate->system->setUpdateCallback()`   |
     pub(super) fn set_update_callback<G: Game>(&self, callback_function: PDCallbackFunction) {
         let user_data: *mut c_void = G::try_get_mut().map_or(null_mut(), |mut game: RefMut<G>| {
             (&mut (*game)) as *mut G as *mut c_void
@@ -910,10 +910,10 @@ impl SysAPI {
     /// invoking the callback (see [`SysAPI::menu_item_callback`]/
     /// [`SysAPI::menu_item_callback_internal`]).
     ///
-    /// | Language | Equivalent function                                     |
-    /// | :------- | :------------------------------------------------------ |
-    /// | Rust     | `CrankstartAPI::get().system.set_menu_item_user_data()` |
-    /// | C        | `pd->system->setMenuItemUserdata()`                     |
+    /// | Language | Equivalent function                           |
+    /// | :------- | :-------------------------------------------- |
+    /// | Rust     | `crankstart.system.set_menu_item_user_data()` |
+    /// | C        | `playdate->system->setMenuItemUserdata()`     |
     fn set_menu_item_user_data(&self, menu_item: &MenuItemPtr) {
         let pd_menu_item: *mut PDMenuItem = menu_item.get_pd_ptr().as_ptr();
         let ptr_inner: &PtrInner<MenuItemPtr> = menu_item.get_ptr_inner();
@@ -984,11 +984,11 @@ impl SysAPI {
     ///   enough to hold `size` bytes or null if it cannot be allocated.
     /// * If `ptr` is null and `size` is zero, returns null.
     ///
-    /// | Language | Equivalent function                     |
-    /// | :------- | :-------------------------------------- |
-    /// | Rust     | `CrankstartAPI::get().system.realloc()` |
-    /// | C        | `pd->system->realloc()`                 |
-    #[cfg_attr(any(test, doctest), allow(dead_code))]
+    /// | Language | Equivalent function           |
+    /// | :------- | :---------------------------- |
+    /// | Rust     | `crankstart.system.realloc()` |
+    /// | C        | `playdate->system->realloc()` |
+    #[cfg_attr(any(test, doctest, feature = "std"), allow(dead_code))]
     pub(crate) fn realloc(&self, ptr: *mut u8, size: usize) -> *mut u8 {
         unsafe { (self.realloc)(ptr as *mut c_void, size) as *mut u8 }
     }

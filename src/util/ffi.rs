@@ -1,7 +1,7 @@
 #[cfg(target_os = "macos")]
 pub mod macos;
 
-#[cfg(not(any(test, doctest)))]
+#[cfg(not(any(test, doctest, feature = "std")))]
 pub mod non_test;
 
 #[cfg(not(target_os = "windows"))]

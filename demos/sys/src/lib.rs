@@ -6,33 +6,33 @@ use {
     crankstart::{
         CrankstartAPI, Game,
         alloc::{boxed::Box, vec::Vec},
-        crankstart_game, define_enum_with_count, println,
-        sys::{Button, MenuItemPtr},
+        crankstart_game, define_enum_count, println,
+        sys::{Button, menu_item::MenuItemPtr},
         util::{
-            callback::Callback, enum_with_count::EnumWithCount, singleton::Singleton,
-            string::SmallTempString,
+            callback::Callback, enums::count::EnumCount, singleton::Singleton,
+            string::ShortTempString,
         },
         write0,
     },
 };
 
-define_enum_with_count! {
+define_enum_count! {
     #[repr(u8)]
     #[allow(dead_code)]
     #[derive(Clone, Copy)]
-    enum SysGameState {
+    enum SysDemoState {
         AddDefaultMenuItem,
         AddCheckmarkMenuItem,
         AddOptionsMenuItem,
     }
 }
 
-impl SysGameState {
+impl SysDemoState {
     fn get_short_name(self) -> &'static str {
         match self {
-            SysGameState::AddDefaultMenuItem => "Default",
-            SysGameState::AddCheckmarkMenuItem => "Checkmark",
-            SysGameState::AddOptionsMenuItem => "Options",
+            SysDemoState::AddDefaultMenuItem => "Default",
+            SysDemoState::AddCheckmarkMenuItem => "Checkmark",
+            SysDemoState::AddOptionsMenuItem => "Options",
         }
     }
 
@@ -42,15 +42,15 @@ impl SysGameState {
 }
 
 #[derive(Default)]
-struct SysGame {
-    state: Option<SysGameState>,
+struct SysDemo {
+    state: Option<SysDemoState>,
     menu_items: Vec<MenuItemPtr>,
 }
 
-impl SysGame {
-    fn build_title(&self, menu_item_index: usize) -> SmallTempString {
+impl SysDemo {
+    fn build_title(&self, menu_item_index: usize) -> ShortTempString {
         let short_name: &str = self.state.unwrap().get_short_name();
-        let mut title: SmallTempString = SmallTempString::new();
+        let mut title: ShortTempString = ShortTempString::new();
 
         write0!(&mut title, "{short_name} {menu_item_index}").unwrap();
 
@@ -64,18 +64,18 @@ impl SysGame {
         self.menu_items.clear();
 
         match self.state.clone() {
-            Some(SysGameState::AddDefaultMenuItem) => self.add_default_menu_item(&crankstart_api),
-            Some(SysGameState::AddCheckmarkMenuItem) => {
+            Some(SysDemoState::AddDefaultMenuItem) => self.add_default_menu_item(&crankstart_api),
+            Some(SysDemoState::AddCheckmarkMenuItem) => {
                 self.add_checkmark_menu_item(&crankstart_api)
             }
-            Some(SysGameState::AddOptionsMenuItem) => self.add_options_menu_item(&crankstart_api),
+            Some(SysDemoState::AddOptionsMenuItem) => self.add_options_menu_item(&crankstart_api),
             None => (),
         }
     }
 
     fn add_default_menu_item(&mut self, crankstart_api: &CrankstartAPI) {
         for menu_item_index in 0_usize..3_usize {
-            let title: SmallTempString = self.build_title(menu_item_index);
+            let title: ShortTempString = self.build_title(menu_item_index);
 
             self.menu_items.push(
                 crankstart_api
@@ -88,7 +88,7 @@ impl SysGame {
 
     fn add_checkmark_menu_item(&mut self, crankstart_api: &CrankstartAPI) {
         for menu_item_index in 0_usize..3_usize {
-            let title: SmallTempString = self.build_title(menu_item_index);
+            let title: ShortTempString = self.build_title(menu_item_index);
 
             self.menu_items.push(
                 crankstart_api
@@ -105,7 +105,7 @@ impl SysGame {
 
     fn add_options_menu_item(&mut self, crankstart_api: &CrankstartAPI) {
         for menu_item_index in 0_usize..3_usize {
-            let title: SmallTempString = self.build_title(menu_item_index);
+            let title: ShortTempString = self.build_title(menu_item_index);
 
             self.menu_items.push(
                 crankstart_api
@@ -120,23 +120,23 @@ impl SysGame {
         }
     }
 
-    fn build_callback<I: Debug>(title: &SmallTempString) -> Callback<I> {
-        let mut title: SmallTempString = title.clone();
+    fn build_callback<I: Debug>(title: &ShortTempString) -> Callback<I> {
+        let mut title: ShortTempString = title.clone();
 
         // `title` is null-terminated, which we don't want when printing it below.
         title.pop();
 
-        Callback::from_closure(Box::new(move |input: I| {
+        Callback::from_boxed_closure(Box::new(move |input: I| {
             println!("{title} selected: {input:?}");
         }))
     }
 }
 
-impl Game for SysGame {
+impl Game for SysDemo {
     fn new() -> Result<Self> {
-        let mut sys_game: Self = Default::default();
+        let mut sys_demo: Self = Default::default();
 
-        sys_game.on_state_change();
+        sys_demo.on_state_change();
 
         Ok(Default::default())
     }
@@ -150,7 +150,7 @@ impl Game for SysGame {
         {
             self.state = Some(
                 self.state
-                    .map_or(SysGameState::AddDefaultMenuItem, SysGameState::next),
+                    .map_or(SysDemoState::AddDefaultMenuItem, SysDemoState::next),
             );
             self.on_state_change();
         }
@@ -159,4 +159,4 @@ impl Game for SysGame {
     }
 }
 
-crankstart_game!(SysGame);
+crankstart_game!(SysDemo);

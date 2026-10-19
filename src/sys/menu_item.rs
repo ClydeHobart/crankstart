@@ -4,7 +4,7 @@ use {
         pd_api::PDMenuItem,
         util::{
             callback::Callback,
-            r#enum::count::EnumCount,
+            enums::count::EnumCount,
             ptr::{PtrTrait, UntypedPtr},
             singleton::Singleton,
         },

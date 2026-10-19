@@ -30,8 +30,8 @@ opt-level = 0
 debug = 2
 lto = false
 
-# [workspace]
-# members = [ "demos/sys" ]
+[workspace]
+members = [ "demos/sys", "demos/file" ]
 
 [dependencies]
 anyhow = { version = "1.0.31", default-features = false }
@@ -40,10 +40,17 @@ bitvec = { version = "1.1", default-features = false }
 euclid = { version = "0.22.9", default-features = false, features = [ "libm" ] }
 fnv = { version = "1.0.7", default-features = false }
 hashbrown = "0.14.0"
+semver = { version = "1.0", optional = true, features = [ "serde", "std" ] }
+serde = { version = "1.0", optional = true, features = [ "derive", "std" ]}
 static_assertions = { version = "1.1" }
+toml = { version = "1.1", optional = true }
 
 [dev-dependencies]
 randomize = "3.0.1"
 enum-iterator = "0.6.0"
 rand = { version = "0.8.4", default-features = false, features = [ "alloc" ] }
 rand_pcg = "0.3.1"
+
+[features]
+std = []
+crank = [ "dep:semver", "dep:serde", "dep:toml", "std" ]

@@ -1,14 +1,10 @@
-#![cfg_attr(not(any(test, doctest)), no_std)]
-#![cfg_attr(not(any(test, doctest)), feature(alloc_error_handler))]
+#![cfg_attr(not(any(test, doctest, feature = "std")), no_std)]
+#![cfg_attr(not(any(test, doctest, feature = "std")), feature(alloc_error_handler))]
 #![feature(core_intrinsics)]
 #![allow(unused_features)]
 #![allow(internal_features)]
 
-#[cfg(not(any(test, doctest)))]
 pub extern crate alloc;
-
-#[cfg(any(test, doctest))]
-pub use std as alloc;
 
 use {
     self::{

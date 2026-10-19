@@ -1,4 +1,4 @@
-use {crate::util::r#enum::count::EnumCount, core::marker::PhantomData};
+use {crate::util::enums::count::EnumCount, core::marker::PhantomData};
 
 pub const fn get_for_enum<E: EnumCount>() -> usize {
     let mut bit_arr_storage: BitArrStorage = BitArrStorage::U8Variant;
@@ -39,9 +39,9 @@ pub trait BitArrStorageTrait {
 #[macro_export]
 macro_rules! enum_flags_bit_arr_storage {
     ($enum:ident) => {
-        <$crate::util::r#enum::flags::bit_arr_storage::BitArrStorageImplementor<
-            { $crate::util::r#enum::flags::bit_arr_storage::get_for_enum::<$enum>() },
-        > as $crate::util::r#enum::flags::bit_arr_storage::BitArrStorageTrait>::Storage
+        <$crate::util::enums::flags::bit_arr_storage::BitArrStorageImplementor<
+            { $crate::util::enums::flags::bit_arr_storage::get_for_enum::<$enum>() },
+        > as $crate::util::enums::flags::bit_arr_storage::BitArrStorageTrait>::Storage
     };
 }
 

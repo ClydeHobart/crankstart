@@ -21,7 +21,7 @@ macro_rules! define_enum_count {
             $( $variant, )*
         }
 
-        impl $crate::util::r#enum::count::EnumCount for $enum {
+        impl $crate::util::enums::count::EnumCount for $enum {
             const COUNT: usize = {
                 let mut count: usize = 0_usize;
 

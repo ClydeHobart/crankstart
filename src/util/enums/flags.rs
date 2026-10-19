@@ -1,4 +1,4 @@
-use crate::util::r#enum::count::EnumCount;
+use crate::util::enums::count::EnumCount;
 
 pub mod bit_arr_storage;
 
@@ -17,13 +17,13 @@ macro_rules! define_enum_flags {
     } => {
         $( #[$attr] )*
         #[derive(Clone, Copy, Default, PartialEq)]
-        $pub struct $flags(<$flags as $crate::util::r#enum::flags::EnumFlags>::BitArr);
+        $pub struct $flags(<$flags as $crate::util::enums::flags::EnumFlags>::BitArr);
 
-        impl $crate::util::r#enum::flags::EnumFlags for $flags {
+        impl $crate::util::enums::flags::EnumFlags for $flags {
             type Enum = $enum;
             type BitArrStorage = $crate::enum_flags_bit_arr_storage!($enum);
             type BitArr = bitvec::BitArr!(
-                for <$enum as $crate::util::r#enum::count::EnumCount>::COUNT,
+                for <$enum as $crate::util::enums::count::EnumCount>::COUNT,
                 in $crate::enum_flags_bit_arr_storage!($enum)
             );
         }
@@ -31,16 +31,16 @@ macro_rules! define_enum_flags {
         #[allow(dead_code)]
         impl $flags {
             $pub fn new() -> Self {
-                Self(<Self as $crate::util::r#enum::flags::EnumFlags>::BitArr::new(
+                Self(<Self as $crate::util::enums::flags::EnumFlags>::BitArr::new(
                     Default::default()))
             }
 
             $pub fn all() -> Self {
                 let mut flags: Self = Self::new();
 
-                type Enum = <$flags as $crate::util::r#enum::flags::EnumFlags>::Enum;
+                type Enum = <$flags as $crate::util::enums::flags::EnumFlags>::Enum;
 
-                const COUNT: usize = <Enum as $crate::util::r#enum::count::EnumCount>::COUNT;
+                const COUNT: usize = <Enum as $crate::util::enums::count::EnumCount>::COUNT;
 
                 flags.0[..COUNT].fill(true);
 
@@ -69,7 +69,7 @@ macro_rules! define_enum_flags {
 
                 impl FlagsIterator {
                     fn find_next_variant_index(&self) -> usize {
-                        use $crate::util::r#enum::count::EnumCount;
+                        use $crate::util::enums::count::EnumCount;
 
                         let mut variant_index: usize = self.variant_index;
 
@@ -91,7 +91,7 @@ macro_rules! define_enum_flags {
                     type Item = $enum;
 
                     fn next(&mut self) -> Option<Self::Item> {
-                        use $crate::util::r#enum::count::EnumCount;
+                        use $crate::util::enums::count::EnumCount;
 
                         <$enum as EnumCount>::try_from_variant_index(self.variant_index).map(
                             |next_variant| {
@@ -214,7 +214,7 @@ macro_rules! define_enum_from_pd_flags {
 
         impl From<$pd_flags> for $cs_flags {
             fn from(value: $pd_flags) -> Self {
-                use $crate::util::r#enum::flags::EnumFlags;
+                use $crate::util::enums::flags::EnumFlags;
 
                 // We have compile time assertions in place that this fits.
                 assert!(value.0 <= <$cs_flags as EnumFlags>::BitArrStorage::MAX as u32);
@@ -235,7 +235,12 @@ macro_rules! define_enum_from_pd_flags {
 
 #[cfg(test)]
 mod tests {
-    use {self::TestEnumWithCount::*, crate::define_enum_count, std::mem::transmute};
+    use {
+        self::TestEnumWithCount::*,
+        crate::define_enum_count,
+        alloc::{vec, vec::Vec},
+        core::mem::transmute,
+    };
 
     define_enum_count! {
         #[repr(u8)]

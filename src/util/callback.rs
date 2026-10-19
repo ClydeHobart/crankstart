@@ -1,5 +1,5 @@
 use {
-    crate::{alloc::boxed::Box, define_enum_count, util::r#enum::count::EnumCount},
+    crate::{alloc::boxed::Box, define_enum_count, util::enums::count::EnumCount},
     bitvec::{order::Lsb0, view::BitView},
     core::{
         marker::PhantomData,
@@ -198,7 +198,7 @@ impl<'t, I, O> From<&'t mut dyn FnMut(I) -> O> for TempCallback<'t, I, O> {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "std"))]
 mod tests {
     use {
         super::*,

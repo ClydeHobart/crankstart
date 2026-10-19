@@ -1,0 +1,1 @@
+./assets/simple/a/a/b.txt

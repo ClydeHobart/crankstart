@@ -1,5 +1,9 @@
 pub mod callback;
-pub mod r#enum;
+
+#[cfg(feature = "crank")]
+pub mod crank;
+
+pub mod enums;
 pub mod euclid;
 pub mod ffi;
 pub mod macros;

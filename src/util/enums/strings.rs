@@ -19,7 +19,7 @@ macro_rules! define_enum_strings {
             }
         }
 
-        impl $crate::util::r#enum::strings::EnumStrings for $enum {
+        impl $crate::util::enums::strings::EnumStrings for $enum {
             const STRINGS: &'static [&'static str] = &[
                 $( ::core::stringify!($variant), )*
             ];
@@ -30,7 +30,7 @@ macro_rules! define_enum_strings {
 #[cfg(test)]
 mod tests {
     use crate::util::{
-        r#enum::{count::EnumCount, strings::EnumStrings},
+        enums::{count::EnumCount, strings::EnumStrings},
         mem::do_types_have_eq_size_and_align,
     };
 
