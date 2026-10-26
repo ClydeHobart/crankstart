@@ -1,8 +1,12 @@
+#![allow(suspicious_runtime_symbol_definitions)]
+
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn memcpy(dest: *mut u8, src: *const u8, n: usize) -> *mut u8 {
     let mut i = 0;
     while i < n {
-        unsafe { *dest.add(i) = *src.add(i); }
+        unsafe {
+            *dest.add(i) = *src.add(i);
+        }
         i += 1;
     }
     dest
@@ -15,13 +19,17 @@ pub unsafe extern "C" fn memmove(dest: *mut u8, src: *const u8, n: usize) -> *mu
         let mut i = n;
         while i != 0 {
             i -= 1;
-            unsafe { *dest.add(i) = *src.add(i); }
+            unsafe {
+                *dest.add(i) = *src.add(i);
+            }
         }
     } else {
         // copy from beginning
         let mut i = 0;
         while i < n {
-            unsafe { *dest.add(i) = *src.add(i); }
+            unsafe {
+                *dest.add(i) = *src.add(i);
+            }
             i += 1;
         }
     }
@@ -51,7 +59,9 @@ pub unsafe fn memset_internal(s: *mut u8, c: i32, n: usize) -> *mut u8 {
     let c: u8 = c as u8;
     let mut i = 0;
     while i < n {
-        unsafe { *s.add(i) = c;  }
+        unsafe {
+            *s.add(i) = c;
+        }
         i += 1;
     }
     s
@@ -64,7 +74,9 @@ pub unsafe extern "C" fn memset(s: *mut u8, c: i32, n: usize) -> *mut u8 {
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn __bzero(s: *mut u8, n: usize) {
-    unsafe { memset_internal(s, 0, n); }
+    unsafe {
+        memset_internal(s, 0, n);
+    }
 }
 
 #[unsafe(no_mangle)]

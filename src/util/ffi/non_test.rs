@@ -2,20 +2,24 @@ use {
     crate::{CrankstartAPI, breakpoint, eprintln, util::singleton::Singleton},
     core::{
         alloc::{GlobalAlloc, Layout},
-        intrinsics::abort,
         panic::PanicInfo,
         ptr,
+        ptr::null_mut,
     },
 };
 
 fn abort_with_addr(addr: usize) -> ! {
     let p = addr as *mut i32;
 
+    #[allow(deref_nullptr)]
     unsafe {
         *p = 0;
+
+        // In case `addr` was actually safe to write to...
+        *null_mut::<i32>() = 0;
     }
 
-    abort()
+    panic!()
 }
 
 #[panic_handler]
