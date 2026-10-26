@@ -2,7 +2,7 @@
 pub unsafe extern "C" fn memcpy(dest: *mut u8, src: *const u8, n: usize) -> *mut u8 {
     let mut i = 0;
     while i < n {
-        *dest.add(i) = *src.add(i);
+        unsafe { *dest.add(i) = *src.add(i); }
         i += 1;
     }
     dest
@@ -15,13 +15,13 @@ pub unsafe extern "C" fn memmove(dest: *mut u8, src: *const u8, n: usize) -> *mu
         let mut i = n;
         while i != 0 {
             i -= 1;
-            *dest.add(i) = *src.add(i);
+            unsafe { *dest.add(i) = *src.add(i); }
         }
     } else {
         // copy from beginning
         let mut i = 0;
         while i < n {
-            *dest.add(i) = *src.add(i);
+            unsafe { *dest.add(i) = *src.add(i); }
             i += 1;
         }
     }
@@ -32,8 +32,8 @@ pub unsafe extern "C" fn memmove(dest: *mut u8, src: *const u8, n: usize) -> *mu
 pub unsafe extern "C" fn memcmp(s1: *const u8, s2: *const u8, n: usize) -> i32 {
     let mut i = 0;
     while i < n {
-        let a = *s1.add(i);
-        let b = *s2.add(i);
+        let a = unsafe { *s1.add(i) };
+        let b = unsafe { *s2.add(i) };
         if a != b {
             return a as i32 - b as i32;
         }
@@ -44,26 +44,27 @@ pub unsafe extern "C" fn memcmp(s1: *const u8, s2: *const u8, n: usize) -> i32 {
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn bcmp(s1: *const u8, s2: *const u8, n: usize) -> i32 {
-    memcmp(s1, s2, n)
+    unsafe { memcmp(s1, s2, n) }
 }
 
-pub unsafe fn memset_internal(s: *mut u8, c: crankstart_sys::ctypes::c_int, n: usize) -> *mut u8 {
+pub unsafe fn memset_internal(s: *mut u8, c: i32, n: usize) -> *mut u8 {
+    let c: u8 = c as u8;
     let mut i = 0;
     while i < n {
-        *s.add(i) = c as u8;
+        unsafe { *s.add(i) = c;  }
         i += 1;
     }
     s
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn memset(s: *mut u8, c: crankstart_sys::ctypes::c_int, n: usize) -> *mut u8 {
-    memset_internal(s, c, n)
+pub unsafe extern "C" fn memset(s: *mut u8, c: i32, n: usize) -> *mut u8 {
+    unsafe { memset_internal(s, c, n) }
 }
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn __bzero(s: *mut u8, n: usize) {
-    memset_internal(s, 0, n);
+    unsafe { memset_internal(s, 0, n); }
 }
 
 #[unsafe(no_mangle)]
@@ -72,4 +73,4 @@ extern "C" fn _Unwind_Resume() {
 }
 
 #[link(name = "System")]
-extern "C" {}
+unsafe extern "C" {}

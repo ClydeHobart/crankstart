@@ -7,9 +7,9 @@ use {
         CrankstartAPI, Game, System, define_crankstart_api, define_enum_count, define_enum_flags,
         define_enum_from_pd_flags, ensure, eprintln,
         pd_api::{
-            __va_list_tag, LCDBitmap, PDButtonCallbackFunction, PDButtons, PDCallbackFunction,
+            LCDBitmap, PDButtonCallbackFunction, PDButtons, PDCallbackFunction,
             PDDateTime, PDLanguage, PDMenuItem, PDMenuItemCallbackFunction, PDPeripherals,
-            ctypes::{c_char, c_void},
+            ctypes::{c_char, va_list, c_void},
             playdate_sys,
         },
         q, str_lit,
@@ -204,7 +204,7 @@ define_crankstart_api! {
         vaFormatString: unsafe extern "C" fn(
             outstr: *mut *mut c_char,
             fmt: *const c_char,
-            args: *mut __va_list_tag,
+            args: va_list,
         ) -> i32,
         parseString: unsafe extern "C" fn(
             str_: *const c_char,

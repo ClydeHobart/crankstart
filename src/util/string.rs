@@ -1,11 +1,10 @@
 use {
-    crate::{ensure, q},
+    crate::{ensure, q, pd_api::ctypes::c_char},
     anyhow::{Error, Result},
     arrayvec::{ArrayString, CapacityError},
     core::{
         cmp::Ordering,
         error::Error as CoreError,
-        ffi::c_char,
         fmt::{Debug, Display, Formatter, Result as FmtResult},
         result::Result as CoreResult,
         slice::from_raw_parts,
