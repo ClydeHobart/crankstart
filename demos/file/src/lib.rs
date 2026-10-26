@@ -89,7 +89,7 @@ crankstart_game!(FileDemo);
 mod tests {
     use {
         arrayvec::ArrayVec,
-        crankstart::util::{crank::Target, string::TempString},
+        crankstart::util::{crank::Document, string::TempString},
         semver::Version,
         std::{
             fs::{File, create_dir, create_dir_all},
@@ -176,7 +176,7 @@ mod tests {
 
     #[test]
     fn generate_crank() {
-        Target::try_new(
+        Document::try_new(
             "file",
             Version::new(0, 1, 0),
             "ClydeHobart",

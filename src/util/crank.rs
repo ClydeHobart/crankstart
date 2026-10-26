@@ -11,7 +11,7 @@ use {
         string::String,
         vec::Vec,
     },
-    toml::to_string,
+    toml::to_string_pretty,
 };
 
 pub const CRANK_FILE_NAME: &'static str = "Crank.toml";
@@ -26,7 +26,7 @@ pub struct TargetMetadata<'t> {
 }
 
 impl<'t> TargetMetadata<'t> {
-    pub fn try_new<P: AsRef<Path>>(
+    fn try_new<P: AsRef<Path>>(
         name: &'t str,
         version: Version,
         author: &'t str,
@@ -61,6 +61,8 @@ impl<'t> TargetMetadata<'t> {
             !asset_dirs.is_empty()
         } {}
 
+        asset_files.sort();
+
         Ok(asset_files)
     }
 }
@@ -72,7 +74,7 @@ pub struct Target<'t> {
 }
 
 impl<'t> Target<'t> {
-    pub fn try_new<P: AsRef<Path>>(
+    fn try_new<P: AsRef<Path>>(
         name: &'t str,
         version: Version,
         author: &'t str,
@@ -82,11 +84,30 @@ impl<'t> Target<'t> {
         TargetMetadata::try_new(name, version, author, bundle_id, assets_path)
             .map(|metadata| Self { name, metadata })
     }
+}
+
+#[derive(Serialize)]
+pub struct Document<'d> {
+    pub target: Vec<Target<'d>>,
+}
+
+impl<'d> Document<'d> {
+    pub fn try_new<P: AsRef<Path>>(
+        name: &'d str,
+        version: Version,
+        author: &'d str,
+        bundle_id: &'d str,
+        assets_path: P,
+    ) -> IOResult<Self> {
+        Target::try_new(name, version, author, bundle_id, assets_path).map(|target| Self {
+            target: vec![target],
+        })
+    }
 
     pub fn try_write<P: AsRef<Path>>(&self, dir: P) -> Result<()> {
         ensure!(dir.as_ref().is_dir());
 
-        let crank_string: String = to_string(self)?;
+        let crank_string: String = to_string_pretty(self)?;
 
         let mut crank_path: PathBuf = dir.as_ref().to_path_buf();
 

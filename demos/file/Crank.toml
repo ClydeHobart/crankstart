@@ -6,3 +6,32 @@ name = "file"
 version = "0.1.0"
 author = "ClydeHobart"
 bundle_id = "dev.clydehobart.crankstart.file"
+assets = [
+    "./assets/simple/a/a/a.txt",
+    "./assets/simple/a/a/b.txt",
+    "./assets/simple/a/a/c.txt",
+    "./assets/simple/a/b/a.txt",
+    "./assets/simple/a/b/b.txt",
+    "./assets/simple/a/b/c.txt",
+    "./assets/simple/a/c/a.txt",
+    "./assets/simple/a/c/b.txt",
+    "./assets/simple/a/c/c.txt",
+    "./assets/simple/b/a/a.txt",
+    "./assets/simple/b/a/b.txt",
+    "./assets/simple/b/a/c.txt",
+    "./assets/simple/b/b/a.txt",
+    "./assets/simple/b/b/b.txt",
+    "./assets/simple/b/b/c.txt",
+    "./assets/simple/b/c/a.txt",
+    "./assets/simple/b/c/b.txt",
+    "./assets/simple/b/c/c.txt",
+    "./assets/simple/c/a/a.txt",
+    "./assets/simple/c/a/b.txt",
+    "./assets/simple/c/a/c.txt",
+    "./assets/simple/c/b/a.txt",
+    "./assets/simple/c/b/b.txt",
+    "./assets/simple/c/b/c.txt",
+    "./assets/simple/c/c/a.txt",
+    "./assets/simple/c/c/b.txt",
+    "./assets/simple/c/c/c.txt",
+]
